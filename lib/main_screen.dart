@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -12,16 +13,22 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF233554),
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        leading: null, // 뒤로가기 화살표 완전히 제거
-        toolbarHeight: kToolbarHeight, // 기본 높이 유지
+    return WillPopScope(
+      onWillPop: () async {
+        // 뒤로가기 버튼을 눌러도 앱이 종료되지 않도록 false 반환
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF233554),
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          leading: null, // 뒤로가기 화살표 완전히 제거
+          toolbarHeight: kToolbarHeight, // 기본 높이 유지
+        ),
+        body: _buildBody(),
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
-      body: _buildBody(),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -66,7 +73,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildAddScreen() {
     return const Center(
       child: Text(
-        '추가 화면',
+        '산책 화면',
         style: TextStyle(fontSize: 18),
       ),
     );
