@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'friends_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -41,7 +42,7 @@ class _MainScreenState extends State<MainScreen> {
       case 2:
         return _buildAddScreen();
       case 3:
-        return _buildFriendsScreen();
+        return const FriendsScreen();
       case 4:
         return _buildMyPageScreen();
       default:
@@ -79,14 +80,6 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildFriendsScreen() {
-    return const Center(
-      child: Text(
-        '친구 화면',
-        style: TextStyle(fontSize: 18),
-      ),
-    );
-  }
 
   Widget _buildMyPageScreen() {
     return const Center(
