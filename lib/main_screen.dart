@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -15,7 +16,30 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        // 뒤로가기 버튼을 눌러도 앱이 종료되지 않도록 false 반환
+        // 뒤로가기 버튼을 누르면 앱 종료 확인 다이얼로그 표시
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('앱 종료'),
+            content: const Text('앱을 종료하시겠습니까?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('아니오'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('예'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldExit == true) {
+          // 앱 완전 종료 - 앱 밖으로 나가기
+          SystemNavigator.pop();
+          return true;
+        }
         return false;
       },
       child: Scaffold(
