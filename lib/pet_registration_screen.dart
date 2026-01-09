@@ -29,11 +29,15 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
   String _weight = '';
   bool _isNeutered = false;
   bool _isLoading = false;
+  bool _isWeightUnknown = false;
+  bool _showBreedTextField = false;
+  String _customBreed = '';
+  final _breedTextFieldController = TextEditingController();
 
   final List<String> _breeds = [
     '진돗개', '삽살개', '포메라니안', '치와와', '말티즈', '비글', '시츄', '코기',
     '푸들', '닥스훈트', '골든리트리버', '래브라도리트리버', '비숑프리제', '셰퍼드',
-    '도베르만', '로트와일러', '기타'
+    '도베르만', '로트와일러', '기타', '모르겠음'
   ];
 
   @override
@@ -98,10 +102,42 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
   }
 
   Future<void> _registerPet() async {
-    if (!_formKey.currentState!.validate()) return;
+    // 순차적 예외처리
+    if (_petImage == null && _webImage == null) {
+      _showErrorDialog('반려동물 사진을 추가해주세요.');
+      return;
+    }
+    if (_petName.isEmpty) {
+      _showErrorDialog('반려동물 이름을 입력해주세요.');
+      return;
+    }
+    if (_breed.isEmpty) {
+      _showErrorDialog('품종을 선택해주세요.');
+      return;
+    }
+    if (_breed == '기타(모름)' && _customBreed.isEmpty) {
+      _showErrorDialog('품종을 직접 입력해주세요.');
+      return;
+    }
     if (_gender.isEmpty) {
       _showErrorDialog('성별을 선택해주세요.');
       return;
+    }
+    if (_weight.isEmpty && !_isWeightUnknown) {
+      _showErrorDialog('몸무게를 입력해주세요.');
+      return;
+    }
+    if (_weight.isNotEmpty && !_isWeightUnknown) {
+      try {
+        double weight = double.parse(_weight);
+        if (weight <= 0 || weight > 200) {
+          _showErrorDialog('올바른 몸무게를 입력해주세요 (0.1kg ~ 200kg).');
+          return;
+        }
+      } catch (e) {
+        _showErrorDialog('올바른 숫자 형식의 몸무게를 입력해주세요.');
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
@@ -118,13 +154,18 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
         imageUrl = await _uploadImage();
       }
 
+      String finalBreed = _breed;
+      if (_breed == '기타(모름)' && _customBreed.isNotEmpty) {
+        finalBreed = _customBreed;
+      }
+
       Map<String, dynamic> petData = {
         'userId': user.uid,
         'name': _petName,
-        'breed': _breed,
+        'breed': finalBreed,
         'birthDate': _birthDate != null ? Timestamp.fromDate(_birthDate!) : null,
         'gender': _gender,
-        'weight': _weight,
+        'weight': _isWeightUnknown ? '모르겠음' : _weight,
         'isNeutered': _isNeutered,
         'imageUrl': imageUrl,
         'createdAt': Timestamp.now(),
@@ -283,6 +324,19 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
               // 품종
               _buildLabel('품종'),
               _buildDropdown(),
+              if (_showBreedTextField) ...[
+                const SizedBox(height: 10),
+                _buildTextField(
+                  '직접 품종을 입력하세요',
+                  (value) => _customBreed = value,
+                  validator: (value) {
+                    if (_breed == '기타(모름)' && (value == null || value.isEmpty)) {
+                      return '품종을 입력해주세요.';
+                    }
+                    return null;
+                  },
+                ),
+              ],
               const SizedBox(height: 20),
 
               // 생년월일
@@ -317,8 +371,8 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
                   ElevatedButton(
                     onPressed: () => setState(() => _birthDate = null),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[200],
-                      foregroundColor: Colors.black,
+                      backgroundColor: _birthDate == null ? const Color(0xFF233554) : Colors.grey[200],
+                      foregroundColor: _birthDate == null ? Colors.white : Colors.black,
                       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
                     ),
                     child: const Text('모르겠음'),
@@ -344,10 +398,27 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
 
               // 몸무게
               _buildLabel('몸무게'),
-              _buildTextField(
-                '몸무게를 입력하세요 (kg)',
-                (value) => _weight = value,
-                keyboardType: TextInputType.number,
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildTextField(
+                      '몸무게를 입력하세요 (kg)',
+                      (value) => _weight = value,
+                      keyboardType: TextInputType.number,
+                      enabled: !_isWeightUnknown,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () => setState(() => _isWeightUnknown = !_isWeightUnknown),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isWeightUnknown ? const Color(0xFF233554) : Colors.grey[200],
+                      foregroundColor: _isWeightUnknown ? Colors.white : Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                    ),
+                    child: const Text('모르겠음'),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
 
@@ -415,6 +486,7 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
     Function(String) onChanged, {
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    bool? enabled,
   }) {
     return TextFormField(
       decoration: InputDecoration(
@@ -436,6 +508,7 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
       onChanged: onChanged,
       validator: validator,
       keyboardType: keyboardType,
+      enabled: enabled ?? true,
     );
   }
 
@@ -467,6 +540,15 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
         if (value != null) {
           setState(() {
             _breed = value;
+            if (value == '기타(모름)') {
+              _showBreedTextField = true;
+            } else if (value == '모르겠음') {
+              _showBreedTextField = false;
+              _customBreed = '모르겠음';
+            } else {
+              _showBreedTextField = false;
+              _customBreed = '';
+            }
           });
         }
       },
