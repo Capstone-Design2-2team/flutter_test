@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'friends_screen.dart';
+import 'package:teamproject/feed_screen.dart';
+import 'package:teamproject/my_page_screen.dart';
+import 'package:teamproject/pet_registration_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -16,17 +18,16 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        // 뒤로가기 버튼을 눌러도 앱이 종료되지 않도록 false 반환
         return false;
       },
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF233554),
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          leading: null, // 뒤로가기 화살표 완전히 제거
-          toolbarHeight: kToolbarHeight, // 기본 높이 유지
-        ),
+        // appBar: AppBar(
+        //   backgroundColor: const Color(0xFF233554),
+        //   elevation: 0,
+        //   automaticallyImplyLeading: false,
+        //   leading: null,
+        //   toolbarHeight: kToolbarHeight,
+        // ),
         body: _buildBody(),
         bottomNavigationBar: _buildBottomNavigationBar(),
       ),
@@ -38,13 +39,13 @@ class _MainScreenState extends State<MainScreen> {
       case 0:
         return _buildHomeScreen();
       case 1:
-        return _buildFeedScreen();
+        return const FeedScreen();
       case 2:
         return _buildAddScreen();
       case 3:
-        return const FriendsScreen();
+        return _buildFriendsScreen();
       case 4:
-        return _buildMyPageScreen();
+        return MyPageScreen();
       default:
         return _buildHomeScreen();
     }
@@ -54,47 +55,27 @@ class _MainScreenState extends State<MainScreen> {
     return const Center(
       child: Text(
         '등록된 반려동물이 없습니다.',
-        style: TextStyle(
-          color: Colors.grey,
-          fontSize: 16,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFeedScreen() {
-    return const Center(
-      child: Text(
-        '피드 화면',
-        style: TextStyle(fontSize: 18),
+        style: TextStyle(color: Colors.grey, fontSize: 16),
       ),
     );
   }
 
   Widget _buildAddScreen() {
     return const Center(
-      child: Text(
-        '산책 화면',
-        style: TextStyle(fontSize: 18),
-      ),
+      child: Text('산책 화면', style: TextStyle(fontSize: 18)),
     );
   }
 
-
-  Widget _buildMyPageScreen() {
+  Widget _buildFriendsScreen() {
     return const Center(
-      child: Text(
-        'MY 화면',
-        style: TextStyle(fontSize: 18),
-      ),
+      child: Text('친구 화면', style: TextStyle(fontSize: 18)),
     );
   }
+
 
   Widget _buildBottomNavigationBar() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF233554),
-      ),
+      decoration: const BoxDecoration(color: Color(0xFF233554)),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -116,19 +97,11 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isSelected = _currentIndex == index;
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _currentIndex = index;
-        });
-      },
+      onTap: () => setState(() => _currentIndex = index),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            color: isSelected ? Colors.white : Colors.grey,
-            size: 24,
-          ),
+          Icon(icon, color: isSelected ? Colors.white : Colors.grey, size: 24),
           const SizedBox(height: 4),
           Text(
             label,
@@ -144,21 +117,14 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildCenterNavItem() {
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _currentIndex = 2;
-        });
-      },
+      onTap: () => setState(() => _currentIndex = 2),
       child: Container(
         width: 50,
         height: 50,
         decoration: BoxDecoration(
           color: const Color(0xFF233554),
           shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white,
-            width: 2,
-          ),
+          border: Border.all(color: Colors.white, width: 2),
         ),
         child: Center(
           child: CustomPaint(
@@ -171,7 +137,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 }
 
-// 뼈 모양 아이콘을 그리는 CustomPainter
 class BoneIconPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -183,22 +148,9 @@ class BoneIconPainter extends CustomPainter {
     final centerY = size.height / 2;
     final radius = size.width / 6;
 
-    // 뼈 모양: 두 개의 원과 중간 연결 부분
-    // 왼쪽 원
-    canvas.drawCircle(
-      Offset(centerX - size.width / 4, centerY),
-      radius,
-      paint,
-    );
+    canvas.drawCircle(Offset(centerX - size.width / 4, centerY), radius, paint);
+    canvas.drawCircle(Offset(centerX + size.width / 4, centerY), radius, paint);
 
-    // 오른쪽 원
-    canvas.drawCircle(
-      Offset(centerX + size.width / 4, centerY),
-      radius,
-      paint,
-    );
-
-    // 중간 연결 부분 (사각형)
     final rect = RRect.fromRectAndRadius(
       Rect.fromCenter(
         center: Offset(centerX, centerY),
@@ -213,4 +165,3 @@ class BoneIconPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-
