@@ -33,7 +33,7 @@ class WalkRecordScreen extends StatefulWidget {
 class _WalkRecordScreenState extends State<WalkRecordScreen> {
   final TextEditingController _memoCtrl = TextEditingController();
 
-  bool _isPublic = false; // is_public
+  bool _isPublic = true; // is_public - 기본값을 true로 변경
   String _moodEmoji = '😊'; // mood_emoji
 
   final List<XFile> _photos = <XFile>[]; // post_images
@@ -85,6 +85,35 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
     return urls;
   }
 
+  Future<void> _createFeedFromWalk(String walkId, String userId, List<String> postImages) async {
+    try {
+      final feedDoc = FirebaseFirestore.instance.collection('feeds').doc();
+      
+      final distanceKm = widget.distanceMeters / 1000.0;
+      
+      await feedDoc.set({
+        'userId': userId,
+        'walkId': walkId,
+        'imageUrl': postImages.first, // 사진이 필수이므로 첫 번째 사진 사용
+        'title': '산책 기록',
+        'walkDate': '${widget.startedAt.year}-${widget.startedAt.month.toString().padLeft(2, '0')}-${widget.startedAt.day.toString().padLeft(2, '0')}',
+        'walkTime': '${widget.startedAt.hour.toString().padLeft(2, '0')}:${widget.startedAt.minute.toString().padLeft(2, '0')} ~ ${widget.endedAt.hour.toString().padLeft(2, '0')}:${widget.endedAt.minute.toString().padLeft(2, '0')}',
+        'distance': distanceKm.toStringAsFixed(2),
+        'description': '', // 메모는 피드에서 보이지 않도록 빈 문자열
+        'moodEmoji': _moodEmoji,
+        'petIds': widget.petIds,
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+      });
+      
+      // ignore: avoid_print
+      print('feed created: ${feedDoc.id}');
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error creating feed: $e');
+    }
+  }
+
   Future<void> _save() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -133,6 +162,23 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
       // ✅ Firebase 저장 성공 로그 (연동 확인용)
       // ignore: avoid_print
       print('walk_records saved: $walkId');
+
+      // ✅ 피드 생성 (공개 설정일 경우에만)
+      if (_isPublic) {
+        if (postImages.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('피드에 공유하려면 사진을 최소 1장 이상 추가해주세요.')),
+          );
+          return;
+        }
+        print('Creating feed for walk: $walkId');
+        print('User ID: $uid');
+        print('Post images count: ${postImages.length}');
+        await _createFeedFromWalk(walkId, uid, postImages);
+        print('Feed creation completed');
+      } else {
+        print('Feed not created - isPublic is false');
+      }
 
       if (_isPublic) {
         await Share.share(
