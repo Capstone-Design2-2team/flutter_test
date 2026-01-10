@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'friend_detail_page.dart';
 
 class FriendsScreen extends StatefulWidget {
@@ -101,6 +102,102 @@ class UserListItem extends StatefulWidget {
 
 class _UserListItemState extends State<UserListItem> {
   bool _isFollowed = false;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFollowStatus();
+  }
+
+  Future<void> _checkFollowStatus() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final followingDoc = await FirebaseFirestore.instance
+          .collection('following')
+          .where('userId', isEqualTo: currentUser.uid)
+          .where('followingId', isEqualTo: widget.user['uid'])
+          .get();
+
+      setState(() {
+        _isFollowed = followingDoc.docs.isNotEmpty;
+      });
+    } catch (e) {
+      print('Error checking follow status: $e');
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    if (_isLoading) return;
+    
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      if (_isFollowed) {
+        // 언팔로우
+        await FirebaseFirestore.instance
+            .collection('following')
+            .where('userId', isEqualTo: currentUser.uid)
+            .where('followingId', isEqualTo: widget.user['uid'])
+            .get()
+            .then((snapshot) {
+          for (var doc in snapshot.docs) {
+            doc.reference.delete();
+          }
+        });
+
+        await FirebaseFirestore.instance
+            .collection('followers')
+            .where('userId', isEqualTo: widget.user['uid'])
+            .where('followerId', isEqualTo: currentUser.uid)
+            .get()
+            .then((snapshot) {
+          for (var doc in snapshot.docs) {
+            doc.reference.delete();
+          }
+        });
+      } else {
+        // 팔로우
+        await FirebaseFirestore.instance.collection('following').add({
+          'userId': currentUser.uid,
+          'followingId': widget.user['uid'],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        await FirebaseFirestore.instance.collection('followers').add({
+          'userId': widget.user['uid'],
+          'followerId': currentUser.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      setState(() {
+        _isFollowed = !_isFollowed;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isFollowed ? '팔로우를 취소했습니다.' : '팔로우했습니다.'),
+          backgroundColor: const Color(0xFF233554),
+        ),
+      );
+    } catch (e) {
+      print('Error toggling follow: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('오류가 발생했습니다.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -163,11 +260,7 @@ class _UserListItemState extends State<UserListItem> {
 
               // 팔로우 버튼 (이미지의 짙은 남색 버튼)
               ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _isFollowed = !_isFollowed;
-                  });
-                },
+                onPressed: _toggleFollow,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isFollowed ? Colors.grey : const Color(0xFF233554),
                   foregroundColor: Colors.white,
@@ -177,10 +270,19 @@ class _UserListItemState extends State<UserListItem> {
                     borderRadius: BorderRadius.circular(25),
                   ),
                 ),
-                child: Text(
-                  _isFollowed ? '팔로우 취소' : '팔로우',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text(
+                        _isFollowed ? '팔로우 취소' : '팔로우',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
               ),
             ],
           ),

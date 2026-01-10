@@ -315,9 +315,28 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
               TextField(
                 controller: _memoCtrl,
                 maxLines: 3,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.grey),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF233554)),
+                  ),
+                  hintText: '산책에 대한 메모를 작성해주세요...',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  contentPadding: const EdgeInsets.all(12),
                 ),
+                style: const TextStyle(
+                  fontSize: 16,
+                  height: 1.4,
+                ),
+                enableSuggestions: true,
+                autocorrect: true,
               ),
 
               const Spacer(),

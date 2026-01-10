@@ -17,7 +17,7 @@ class MyPageScreen extends StatefulWidget {
   State<MyPageScreen> createState() => _MyPageScreenState();
 }
 
-class _MyPageScreenState extends State<MyPageScreen> {
+class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver {
   bool _locationPublic = false;
   Map<String, dynamic>? _userInfo;
   int _postsCount = 0;
@@ -27,10 +27,35 @@ class _MyPageScreenState extends State<MyPageScreen> {
   bool _isLoading = true;
   final ImagePicker _picker = ImagePicker();
   File? _profileImage;
+  bool _needsRefresh = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _loadUserData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // 앱이 포그라운드에서 다시 활성화될 때 데이터 새로고침
+    if (state == AppLifecycleState.resumed && _needsRefresh) {
+      _loadUserData();
+      _needsRefresh = false;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 페이지가 다시 보일 때 데이터 새로고침 (피드 화면에서 돌아올 때)
     _loadUserData();
   }
 
@@ -249,27 +274,38 @@ class _MyPageScreenState extends State<MyPageScreen> {
   }
 
   Widget _buildTabsSection() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 15),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildTabButton('게시글', 0, _postsCount),
-                _buildTabButton('팔로잉', 1, _followingCount),
-                _buildTabButton('팔로우', 2, _followersCount),
-              ],
-            ),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('feeds')
+          .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
+          .snapshots(),
+      builder: (context, feedSnapshot) {
+        // 실시간으로 게시글 수 업데이트
+        final currentPostsCount = feedSnapshot.data?.docs.length ?? 0;
+        
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey),
+            borderRadius: BorderRadius.circular(10),
           ),
-        ],
-      ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildTabButton('게시글', 0, currentPostsCount),
+                    _buildTabButton('팔로잉', 1, _followingCount),
+                    _buildTabButton('팔로우', 2, _followersCount),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
