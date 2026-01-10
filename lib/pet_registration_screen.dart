@@ -330,7 +330,7 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
                   '직접 품종을 입력하세요',
                   (value) => _customBreed = value,
                   validator: (value) {
-                    if (_breed == '기타(모름)' && (value == null || value.isEmpty)) {
+                    if (_breed == '기타' && (value == null || value.isEmpty)) {
                       return '품종을 입력해주세요.';
                     }
                     return null;
@@ -540,7 +540,7 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
         if (value != null) {
           setState(() {
             _breed = value;
-            if (value == '기타(모름)') {
+            if (value == '기타') {
               _showBreedTextField = true;
             } else if (value == '모르겠음') {
               _showBreedTextField = false;

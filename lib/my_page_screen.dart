@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'posts_screen.dart';
 import 'following_screen.dart';
 import 'followers_screen.dart';
 import 'pet_registration_screen.dart';
 import 'user_service.dart';
+import 'dart:io';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
@@ -21,6 +25,8 @@ class _MyPageScreenState extends State<MyPageScreen> {
   int _followersCount = 0;
   List<Map<String, dynamic>> _pets = [];
   bool _isLoading = true;
+  final ImagePicker _picker = ImagePicker();
+  File? _profileImage;
 
   @override
   void initState() {
@@ -52,9 +58,81 @@ class _MyPageScreenState extends State<MyPageScreen> {
       }
     } catch (e) {
       print('사용자 데이터 로드 오류: $e');
-      setState(() {
-        _isLoading = false;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showProfileImageDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('프로필 이미지'),
+        content: const Text('프로필 이미지 수정 기능은 준비 중입니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickProfileImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _profileImage = File(pickedFile.path);
+        });
+        await _uploadProfileImage();
+      }
+    } catch (e) {
+      print('프로필 이미지 선택 오류: $e');
+    }
+  }
+
+  Future<void> _uploadProfileImage() async {
+    if (_profileImage == null) return;
+    
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      String fileName = 'profile_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      Reference ref = FirebaseStorage.instance.ref().child('profile_images').child(fileName);
+
+      UploadTask uploadTask = ref.putFile(_profileImage!);
+      TaskSnapshot snapshot = await uploadTask;
+      String imageUrl = await snapshot.ref.getDownloadURL();
+
+      // Firestore에 이미지 URL 업데이트
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'profileImageUrl': imageUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // 로컬 상태 업데이트
+      setState(() {
+        if (_userInfo != null) {
+          _userInfo!['profileImageUrl'] = imageUrl;
+        }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('프로필 이미지가 업데이트되었습니다.')),
+      );
+    } catch (e) {
+      print('프로필 이미지 업로드 오류: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('프로필 이미지 업로드에 실패했습니다.')),
+      );
     }
   }
 
@@ -113,11 +191,28 @@ class _MyPageScreenState extends State<MyPageScreen> {
               color: Colors.grey[300],
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.person,
-              size: 40,
-              color: Colors.grey,
-            ),
+            child: _userInfo?['profileImageUrl'] != null && _userInfo!['profileImageUrl'].isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(40),
+                    child: Image.network(
+                      _userInfo!['profileImageUrl'],
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(
+                          Icons.person,
+                          size: 40,
+                          color: Colors.grey,
+                        );
+                      },
+                    ),
+                  )
+                : const Icon(
+                    Icons.person,
+                    size: 40,
+                    color: Colors.grey,
+                  ),
           ),
           const SizedBox(width: 20),
           Expanded(
@@ -163,7 +258,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.symmetric(vertical: 15),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
@@ -243,7 +338,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
 
   Widget _buildPetSection() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey),
         borderRadius: BorderRadius.circular(10),
@@ -296,7 +391,20 @@ class _MyPageScreenState extends State<MyPageScreen> {
                                 color: Colors.grey[300],
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.pets, color: Colors.grey),
+                              child: pet['imageUrl'] != null && pet['imageUrl'].isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: Image.network(
+                                        pet['imageUrl'],
+                                        width: 40,
+                                        height: 40,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return const Icon(Icons.pets, color: Colors.grey);
+                                        },
+                                      ),
+                                    )
+                                  : const Icon(Icons.pets, color: Colors.grey),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -352,9 +460,9 @@ class _MyPageScreenState extends State<MyPageScreen> {
       child: Column(
         children: [
           _buildMenuButton('나의 활동 이력'),
-          const SizedBox(height: 10),
+          const SizedBox(height: 15),
           _buildMenuButton('차단된 사용자'),
-          const SizedBox(height: 10),
+          const SizedBox(height: 15),
           _buildMenuButton('대표 반려동물 선택'),
         ],
       ),

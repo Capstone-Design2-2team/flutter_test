@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import '../pet_registration_screen.dart';
 import 'walk_record_screen.dart';
 
 class WalkScreen extends StatefulWidget {
@@ -153,6 +153,12 @@ class _WalkScreenState extends State<WalkScreen> {
   }
 
   Future<void> _startWalk() async {
+    // 등록된 반려동물이 있는지 확인
+    if (_selectedPetIds.isEmpty) {
+      _snack('산책을 시작하려면 반려동물을 선택해주세요.');
+      return;
+    }
+
     final ok = await _ensureLocationReady(interactive: true);
     if (!mounted) return;
 
@@ -250,8 +256,8 @@ class _WalkScreenState extends State<WalkScreen> {
           endedAt: endedAt,
           duration: elapsed,
           distanceMeters: _distanceM,
-          path: List<LatLng>.from(_path),
-          petIds: _selectedPetIds.toList(growable: false),
+          path: List.from(_path),
+          petIds: _selectedPetIds.toList(),
         ),
       ),
     );
@@ -404,7 +410,11 @@ class _WalkScreenState extends State<WalkScreen> {
                               ),
                               onPressed: _permissionOk ? _startWalk : _onPermissionButton,
                               child: Text(
-                                _permissionOk ? '산책 시작' : '권한 먼저 허용',
+                                _permissionOk && _selectedPetIds.isNotEmpty 
+                                    ? '산책 시작' 
+                                    : _selectedPetIds.isEmpty 
+                                        ? '산책 시작' 
+                                        : '권한 먼저 허용',
                                 style: const TextStyle(color: Colors.white, fontSize: 16),
                               ),
                             ),
@@ -487,10 +497,6 @@ class _WalkScreenState extends State<WalkScreen> {
         if (docs.isEmpty) {
           return Row(
             children: [
-              _petCircle(icon: Icons.pets, label: '펫', selected: false, onTap: null),
-              const SizedBox(width: 10),
-              _petCircle(icon: Icons.pets, label: '펫', selected: false, onTap: null),
-              const SizedBox(width: 10),
               _addPetCircle(context),
             ],
           );
@@ -582,11 +588,19 @@ class _WalkScreenState extends State<WalkScreen> {
 
   Widget _addPetCircle(BuildContext context) {
     return GestureDetector(
-      onTap: () => _snack('펫 추가/관리 화면은 아직 연결되지 않았습니다.'),
-      child: const CircleAvatar(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const PetRegistrationScreen()),
+        ).then((_) {
+          // 반려동물 등록 후 데이터 새로고침
+          setState(() {});
+        });
+      },
+      child: CircleAvatar(
         radius: 22,
-        backgroundColor: Color(0xFFE0E0E0),
-        child: Icon(Icons.add, color: Colors.white),
+        backgroundColor: const Color(0xFFE0E0E0),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

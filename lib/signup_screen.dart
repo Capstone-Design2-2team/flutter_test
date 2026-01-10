@@ -389,6 +389,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   hintText: '자신을 소개해주세요.',
                 ),
                 maxLines: 2,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
               ),
               const SizedBox(height: 30),
               SizedBox(
@@ -409,6 +411,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       : const Text('회원 가입', style: TextStyle(color: Colors.white, fontSize: 18)),
                 ),
               ),
+              const SizedBox(height: 30), // 키보드 공간 확보를 위한 여백 추가
             ],
           ),
         ),
