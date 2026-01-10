@@ -8,6 +8,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../pet_registration_screen.dart';
 import 'walk_record_screen.dart';
 import '../feed_screen.dart';
+import '../main_screen.dart';
 
 class WalkScreen extends StatefulWidget {
   final VoidCallback onBackToHome;
@@ -271,11 +272,21 @@ class _WalkScreenState extends State<WalkScreen> {
         _path.clear();
       });
       
-      // 산책 완료 후 피드 화면으로 이동
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const FeedScreen()),
-        (route) => route.isFirst,
-      );
+      // 산책 완료 후 홈 화면으로 돌아가서 피드 탭으로 이동
+      Navigator.of(context).pop();
+      // MainScreen으로 돌아간 후 피드 탭으로 자동 이동하도록 콜백 호출
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onBackToHome();
+          // 부모 위젯에게 피드 탭으로 이동하라고 알리기
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => const MainScreen(),
+              settings: const RouteSettings(arguments: 1), // 피드 탭 인덱스
+            ),
+          );
+        }
+      });
     }
   }
 

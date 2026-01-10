@@ -8,6 +8,10 @@ import 'following_screen.dart';
 import 'followers_screen.dart';
 import 'pet_registration_screen.dart';
 import 'user_service.dart';
+import 'activity_history_screen.dart';
+import 'blocked_users_screen.dart';
+import 'representative_pet_screen.dart';
+import 'profile_edit_screen.dart';
 import 'dart:io';
 
 class MyPageScreen extends StatefulWidget {
@@ -265,7 +269,18 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.grey),
             onPressed: () {
-              // 프로필 편집 기능
+              // 프로필 편집 화면으로 이동
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ProfileEditScreen(),
+                ),
+              ).then((result) {
+                if (result == true) {
+                  // 프로필 업데이트 후 데이터 새로고침
+                  _loadUserData();
+                }
+              });
             },
           ),
         ],
@@ -516,6 +531,28 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
       child: MaterialButton(
         onPressed: () {
           // 각 메뉴 기능 구현
+          if (title == '나의 활동 이력') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ActivityHistoryScreen(),
+              ),
+            );
+          } else if (title == '차단된 사용자') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BlockedUsersScreen(),
+              ),
+            );
+          } else if (title == '대표 반려동물 선택') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const RepresentativePetScreen(),
+              ),
+            );
+          }
         },
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

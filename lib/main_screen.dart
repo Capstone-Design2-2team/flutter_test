@@ -18,6 +18,20 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // RouteSettings에서 초기 탭 인덱스 확인
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is int && args >= 0 && args <= 4) {
+        setState(() {
+          _currentIndex = args;
+        });
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {

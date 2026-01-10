@@ -28,18 +28,18 @@ class _FeedScreenState extends State<FeedScreen> {
           .collection('feeds')
           .orderBy('createdAt', descending: true)
           .get();
-      
+
       List<Map<String, dynamic>> feeds = [];
       for (var doc in snapshot.docs) {
         Map<String, dynamic> feedData = doc.data() as Map<String, dynamic>;
         feedData['id'] = doc.id;
-        
+
         // Get user info from users collection
         DocumentSnapshot userDoc = await _firestore
             .collection('users')
             .doc(feedData['userId'])
             .get();
-        
+
         if (userDoc.exists) {
           feedData['userInfo'] = userDoc.data() as Map<String, dynamic>;
           print('User info loaded for ${feedData['userId']}: ${feedData['userInfo']['nickname']}');
@@ -51,10 +51,10 @@ class _FeedScreenState extends State<FeedScreen> {
             'bio': '산책을 즐기는 분',
           };
         }
-        
+
         feeds.add(feedData);
       }
-      
+
       setState(() {
         _feeds = feeds;
         _isLoading = false;
@@ -98,60 +98,60 @@ class _FeedScreenState extends State<FeedScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _feeds.isEmpty
-              ? const Center(
-                  child: Text(
-                    '등록된 피드가 없습니다.',
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadFeeds,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: GridView.builder(
-                          padding: const EdgeInsets.all(16),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
+          ? const Center(
+        child: Text(
+          '등록된 피드가 없습니다.',
+          style: TextStyle(color: Colors.grey, fontSize: 16),
+        ),
+      )
+          : RefreshIndicator(
+        onRefresh: _loadFeeds,
+        child: Column(
+          children: [
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
+                itemCount: _feeds.length,
+                itemBuilder: (context, index) {
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FeedDetailScreen(feedData: _feeds[index]),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        image: DecorationImage(
+                          image: NetworkImage(
+                            _feeds[index]['imageUrl'] ?? 'https://picsum.photos/200/200?random=$index',
                           ),
-                          itemCount: _feeds.length,
-                          itemBuilder: (context, index) {
-                            return GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => FeedDetailScreen(feedData: _feeds[index]),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(8),
-                                  image: DecorationImage(
-                                    image: NetworkImage(
-                                      _feeds[index]['imageUrl'] ?? 'https://picsum.photos/200/200?random=$index',
-                                    ),
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
+                          fit: BoxFit.cover,
                         ),
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 class FeedDetailScreen extends StatefulWidget {
   final Map<String, dynamic> feedData;
-  
+
   const FeedDetailScreen({super.key, required this.feedData});
 
   @override
@@ -191,7 +191,7 @@ class _FeedDetailScreenState extends State<FeedDetailScreen> {
           .collection('likes')
           .doc(user.uid)
           .get();
-      
+
       // Check if user follows this feed owner (only if not own post)
       DocumentSnapshot followDoc = await _firestore
           .collection('users')
