@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
+import 'main_screen.dart';
 
 class StartScreen extends StatefulWidget {
   const StartScreen({super.key});
@@ -31,13 +32,15 @@ class _StartScreenState extends State<StartScreen> {
         final user = _auth.currentUser;
         if (user != null) {
           // 이미 로그인되어 있으면 메인 화면으로 이동
-          // TODO: 메인 화면이 생기면 여기서 Navigator.pushReplacement로 이동
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('자동 로그인되었습니다.'),
                 backgroundColor: Colors.green,
               ),
+            );
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const MainScreen()),
             );
           }
         } else {
@@ -64,9 +67,39 @@ class _StartScreenState extends State<StartScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isCheckingAuth) {
-      return const Scaffold(
+      return Scaffold(
+        backgroundColor: Colors.white,
         body: Center(
-          child: CircularProgressIndicator(),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 원형 로딩 애니메이션
+              Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF233554),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Loading 텍스트
+              const Text(
+                'Loading...',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF233554),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
