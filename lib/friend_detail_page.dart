@@ -22,7 +22,7 @@ class _FriendDetailPageState extends State<FriendDetailPage> {
   int _followersCount = 0;
   bool _isFollowing = false;
   bool _isBlocked = false;
-  bool _hasPet = true;
+  bool _hasPet = true;  // 사용하지 않는 변수지만 UI에서 필요할 수 있어 유지
   bool _isOwnProfile = false;
   List<Map<String, dynamic>> _pets = [];
   
@@ -80,6 +80,7 @@ class _FriendDetailPageState extends State<FriendDetailPage> {
           _pets = pets;
         });
       } catch (e) {
+        // 개발 중 디버깅용, 프로덕션에서는 제거 권장
         print('반려동물 데이터 로드 오류: $e');
       }
     }
@@ -100,6 +101,7 @@ class _FriendDetailPageState extends State<FriendDetailPage> {
           _followersCount = followersCount;
         });
       } catch (e) {
+        // 개발 중 디버깅용, 프로덕션에서는 제거 권장
         print('사용자 통계 로드 오류: $e');
       }
     }
@@ -563,57 +565,6 @@ class _FriendDetailPageState extends State<FriendDetailPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return Container(
-      height: 60,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: Colors.grey,
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(Icons.home, '홈', false),
-          _buildNavItem(Icons.article, '피드', false),
-          _buildNavItem(Icons.pets, '뼈', true),
-          _buildNavItem(Icons.people, '친구', false),
-          _buildNavItem(Icons.person, 'MY', false),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isSelected) {
-    return GestureDetector(
-      onTap: () {
-        // 네비게이션 기능 구현
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 24,
-            color: isSelected ? const Color(0xFF233554) : Colors.grey,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              color: isSelected ? const Color(0xFF233554) : Colors.grey,
-            ),
-          ),
-        ],
       ),
     );
   }
