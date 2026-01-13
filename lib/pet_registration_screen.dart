@@ -34,10 +34,11 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
   String _customBreed = '';
   final _breedTextFieldController = TextEditingController();
 
-  final List<String> _breeds = [
-    '진돗개', '삽살개', '포메라니안', '치와와', '말티즈', '비글', '시츄', '코기',
-    '푸들', '닥스훈트', '골든리트리버', '래브라도리트리버', '비숑프리제', '셰퍼드',
-    '도베르만', '로트와일러', '기타', '모르겠음'
+  static const List<String> _breeds = [
+    '치와와', '푸들', '닥스훈트', '불독', '시바',
+    '코기', '포메라니안', '진도개', '웰시코지', '비글',
+    '보더콜리', '스코티시폴드테리어', '셰틀랜드', '래브라도',
+    '요크셔테리어', '믹스견', '기타(직접입력)', '모르겠음'
   ];
 
   @override
@@ -211,8 +212,9 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
+              Navigator.pop(context); // 다이얼로그 닫기
+              Navigator.pop(context); // 반려동물 등록 화면 닫기
+              Navigator.pop(context); // 마이페이지로 이동 (여러 화면이 쌓여 있을 경우)
             },
             child: const Text('확인'),
           ),
@@ -330,7 +332,7 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
                   '직접 품종을 입력하세요',
                   (value) => _customBreed = value,
                   validator: (value) {
-                    if (_breed == '기타' && (value == null || value.isEmpty)) {
+                    if (_breed == '기타(모름)' && (value == null || value.isEmpty)) {
                       return '품종을 입력해주세요.';
                     }
                     return null;
@@ -540,14 +542,11 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
         if (value != null) {
           setState(() {
             _breed = value;
-            if (value == '기타') {
+            if (value == '기타(직접입력)') {
               _showBreedTextField = true;
-            } else if (value == '모르겠음') {
-              _showBreedTextField = false;
-              _customBreed = '모르겠음';
             } else {
               _showBreedTextField = false;
-              _customBreed = '';
+              _customBreed = ''; // 다른 옵션 선택 시 초기화
             }
           });
         }

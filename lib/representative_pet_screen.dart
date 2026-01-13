@@ -21,6 +21,27 @@ class _RepresentativePetScreenState extends State<RepresentativePetScreen> {
   void initState() {
     super.initState();
     _loadPets();
+    
+    // 파이어베이스 실시간 감지 설정
+    _setupRealtimeListeners();
+  }
+
+  void _setupRealtimeListeners() {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    
+    // 반려동물 실시간 감지
+    _firestore
+        .collection('pets')
+        .where('userId', isEqualTo: user.uid)
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .listen((snapshot) {
+          if (mounted) {
+            // 데이터 변경 시 전체 목록 다시 로드
+            _loadPets();
+          }
+        });
   }
 
   Future<void> _loadPets() async {

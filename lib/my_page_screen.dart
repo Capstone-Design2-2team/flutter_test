@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'posts_screen.dart';
 import 'following_screen.dart';
 import 'followers_screen.dart';
 import 'pet_registration_screen.dart';
 import 'user_service.dart';
+import 'profile_edit_screen.dart';
 import 'activity_history_screen.dart';
 import 'blocked_users_screen.dart';
 import 'representative_pet_screen.dart';
-import 'profile_edit_screen.dart';
-import 'dart:io';
+import 'pet_confirmation_screen.dart';
 
 class MyPageScreen extends StatefulWidget {
   const MyPageScreen({super.key});
@@ -21,7 +18,7 @@ class MyPageScreen extends StatefulWidget {
   State<MyPageScreen> createState() => _MyPageScreenState();
 }
 
-class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver {
+class _MyPageScreenState extends State<MyPageScreen> {
   bool _locationPublic = false;
   Map<String, dynamic>? _userInfo;
   int _postsCount = 0;
@@ -29,37 +26,10 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
   int _followersCount = 0;
   List<Map<String, dynamic>> _pets = [];
   bool _isLoading = true;
-  final ImagePicker _picker = ImagePicker();
-  File? _profileImage;
-  bool _needsRefresh = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _loadUserData();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    // 앱이 포그라운드에서 다시 활성화될 때 데이터 새로고침
-    if (state == AppLifecycleState.resumed && _needsRefresh) {
-      _loadUserData();
-      _needsRefresh = false;
-    }
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // 페이지가 다시 보일 때 데이터 새로고침 (피드 화면에서 돌아올 때)
     _loadUserData();
   }
 
@@ -87,81 +57,9 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
       }
     } catch (e) {
       print('사용자 데이터 로드 오류: $e');
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _showProfileImageDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('프로필 이미지'),
-        content: const Text('프로필 이미지 수정 기능은 준비 중입니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _pickProfileImage() async {
-    try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 80,
-      );
-
-      if (pickedFile != null) {
-        setState(() {
-          _profileImage = File(pickedFile.path);
-        });
-        await _uploadProfileImage();
-      }
-    } catch (e) {
-      print('프로필 이미지 선택 오류: $e');
-    }
-  }
-
-  Future<void> _uploadProfileImage() async {
-    if (_profileImage == null) return;
-    
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      String fileName = 'profile_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      Reference ref = FirebaseStorage.instance.ref().child('profile_images').child(fileName);
-
-      UploadTask uploadTask = ref.putFile(_profileImage!);
-      TaskSnapshot snapshot = await uploadTask;
-      String imageUrl = await snapshot.ref.getDownloadURL();
-
-      // Firestore에 이미지 URL 업데이트
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'profileImageUrl': imageUrl,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      // 로컬 상태 업데이트
       setState(() {
-        if (_userInfo != null) {
-          _userInfo!['profileImageUrl'] = imageUrl;
-        }
+        _isLoading = false;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('프로필 이미지가 업데이트되었습니다.')),
-      );
-    } catch (e) {
-      print('프로필 이미지 업로드 오류: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('프로필 이미지 업로드에 실패했습니다.')),
-      );
     }
   }
 
@@ -219,29 +117,20 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
             decoration: BoxDecoration(
               color: Colors.grey[300],
               shape: BoxShape.circle,
-            ),
-            child: _userInfo?['profileImageUrl'] != null && _userInfo!['profileImageUrl'].isNotEmpty
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(40),
-                    child: Image.network(
-                      _userInfo!['profileImageUrl'],
-                      width: 80,
-                      height: 80,
+              image: _userInfo?['profileImageUrl'] != null && _userInfo!['profileImageUrl'].isNotEmpty
+                  ? DecorationImage(
+                      image: NetworkImage(_userInfo!['profileImageUrl']),
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(
-                          Icons.person,
-                          size: 40,
-                          color: Colors.grey,
-                        );
-                      },
-                    ),
-                  )
-                : const Icon(
+                    )
+                  : null,
+            ),
+            child: _userInfo?['profileImageUrl'] == null || _userInfo!['profileImageUrl'].isEmpty
+                ? const Icon(
                     Icons.person,
                     size: 40,
                     color: Colors.grey,
-                  ),
+                  )
+                : null,
           ),
           const SizedBox(width: 20),
           Expanded(
@@ -275,12 +164,7 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
                 MaterialPageRoute(
                   builder: (context) => const ProfileEditScreen(),
                 ),
-              ).then((result) {
-                if (result == true) {
-                  // 프로필 업데이트 후 데이터 새로고침
-                  _loadUserData();
-                }
-              });
+              );
             },
           ),
         ],
@@ -289,38 +173,27 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
   }
 
   Widget _buildTabsSection() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('feeds')
-          .where('userId', isEqualTo: FirebaseAuth.instance.currentUser?.uid)
-          .snapshots(),
-      builder: (context, feedSnapshot) {
-        // 실시간으로 게시글 수 업데이트
-        final currentPostsCount = feedSnapshot.data?.docs.length ?? 0;
-        
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey),
-            borderRadius: BorderRadius.circular(10),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildTabButton('게시글', 0, _postsCount),
+                _buildTabButton('팔로잉', 1, _followingCount),
+                _buildTabButton('팔로우', 2, _followersCount),
+              ],
+            ),
           ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildTabButton('게시글', 0, currentPostsCount),
-                    _buildTabButton('팔로잉', 1, _followingCount),
-                    _buildTabButton('팔로우', 2, _followersCount),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -389,7 +262,7 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
 
   Widget _buildPetSection() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      margin: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey),
         borderRadius: BorderRadius.circular(10),
@@ -414,14 +287,27 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[200]!),
                     ),
-                    child: const Text(
-                      '등록된 반려동물이 없습니다',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
-                      textAlign: TextAlign.center,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Text(
+                          '등록된 반려동물이 없습니다',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '마이페이지에서 반려동물을 먼저 등록해주세요',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
                     ),
                   )
                 : Column(
@@ -433,68 +319,76 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
                           border: Border.all(color: Colors.grey[300]!),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                shape: BoxShape.circle,
+                        child: GestureDetector(
+                          onTap: () {
+                            // 반려동물 클릭 시 반려동물 확인 화면으로 이동
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PetConfirmationScreen(
+                                  petId: pet['id'],
+                                ),
                               ),
-                              child: pet['imageUrl'] != null && pet['imageUrl'].isNotEmpty
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(20),
-                                      child: Image.network(
-                                        pet['imageUrl'],
-                                        width: 40,
-                                        height: 40,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return const Icon(Icons.pets, color: Colors.grey);
-                                        },
-                                      ),
-                                    )
-                                  : const Icon(Icons.pets, color: Colors.grey),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    pet['name'] ?? '이름 없음',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    pet['breed'] ?? '품종 정보 없음',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (pet['isRepresentative'] == true)
+                            );
+                          },
+                          child: Row(
+                            children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                width: 40,
+                                height: 40,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF233554),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey[300],
+                                  shape: BoxShape.circle,
+                                  image: pet['imageUrl'] != null && pet['imageUrl'].isNotEmpty
+                                      ? DecorationImage(
+                                          image: NetworkImage(pet['imageUrl']),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
                                 ),
-                                child: const Text(
-                                  '대표',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                  ),
+                                child: pet['imageUrl'] == null || pet['imageUrl'].isEmpty
+                                    ? const Icon(Icons.pets, color: Colors.grey)
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      pet['name'] ?? '이름 없음',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      pet['breed'] ?? '품종 정보 없음',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                          ],
+                              if (pet['isRepresentative'] == true)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF233554),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text(
+                                    '대표',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       );
                     }).toList(),
@@ -507,13 +401,13 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
 
   Widget _buildMenuButtons() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
       child: Column(
         children: [
           _buildMenuButton('나의 활동 이력'),
-          const SizedBox(height: 15),
+          const SizedBox(height: 10),
           _buildMenuButton('차단된 사용자'),
-          const SizedBox(height: 15),
+          const SizedBox(height: 10),
           _buildMenuButton('대표 반려동물 선택'),
         ],
       ),
@@ -531,27 +425,25 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
       child: MaterialButton(
         onPressed: () {
           // 각 메뉴 기능 구현
-          if (title == '나의 활동 이력') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const ActivityHistoryScreen(),
-              ),
-            );
-          } else if (title == '차단된 사용자') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const BlockedUsersScreen(),
-              ),
-            );
-          } else if (title == '대표 반려동물 선택') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const RepresentativePetScreen(),
-              ),
-            );
+          switch (title) {
+            case '나의 활동 이력':
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ActivityHistoryScreen()),
+              );
+              break;
+            case '차단된 사용자':
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const BlockedUsersScreen()),
+              );
+              break;
+            case '대표 반려동물 선택':
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const RepresentativePetScreen()),
+              );
+              break;
           }
         },
         child: Row(
@@ -575,32 +467,68 @@ class _MyPageScreenState extends State<MyPageScreen> with WidgetsBindingObserver
   Widget _buildRegisterPetButton() {
     return Container(
       padding: const EdgeInsets.all(20),
-      child: SizedBox(
-        width: double.infinity,
-        height: 50,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF233554),
-            shape: RoundedRectangleBorder(
+      child: Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF233554),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                // 반려동물 등록 화면으로 이동
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PetRegistrationScreen()),
+                );
+              },
+              child: const Text(
+                '반려동물 등록',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '💡 팁',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF233554),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '반려동물 등록 버튼을 누르면 새로운 반려동물을 추가할 수 있습니다.\n여러 마리의 반려동물을 등록하여 관리해보세요!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
           ),
-          onPressed: () {
-            // 반려동물 등록 화면으로 이동
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const PetRegistrationScreen()),
-            );
-          },
-          child: const Text(
-            '반려동물 등록',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
+        ],
       ),
     );
   }

@@ -33,7 +33,7 @@ class WalkRecordScreen extends StatefulWidget {
 class _WalkRecordScreenState extends State<WalkRecordScreen> {
   final TextEditingController _memoCtrl = TextEditingController();
 
-  bool _isPublic = true; // is_public - 기본값을 true로 변경
+  bool _isPublic = false; // is_public
   String _moodEmoji = '😊'; // mood_emoji
 
   final List<XFile> _photos = <XFile>[]; // post_images
@@ -85,35 +85,6 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
     return urls;
   }
 
-  Future<void> _createFeedFromWalk(String walkId, String userId, List<String> postImages) async {
-    try {
-      final feedDoc = FirebaseFirestore.instance.collection('feeds').doc();
-      
-      final distanceKm = widget.distanceMeters / 1000.0;
-      
-      await feedDoc.set({
-        'userId': userId,
-        'walkId': walkId,
-        'imageUrl': postImages.first, // 사진이 필수이므로 첫 번째 사진 사용
-        'title': '산책 기록',
-        'walkDate': '${widget.startedAt.year}-${widget.startedAt.month.toString().padLeft(2, '0')}-${widget.startedAt.day.toString().padLeft(2, '0')}',
-        'walkTime': '${widget.startedAt.hour.toString().padLeft(2, '0')}:${widget.startedAt.minute.toString().padLeft(2, '0')} ~ ${widget.endedAt.hour.toString().padLeft(2, '0')}:${widget.endedAt.minute.toString().padLeft(2, '0')}',
-        'distance': distanceKm.toStringAsFixed(2),
-        'description': '', // 메모는 피드에서 보이지 않도록 빈 문자열
-        'moodEmoji': _moodEmoji,
-        'petIds': widget.petIds,
-        'createdAt': Timestamp.now(),
-        'updatedAt': Timestamp.now(),
-      });
-      
-      // ignore: avoid_print
-      print('feed created: ${feedDoc.id}');
-    } catch (e) {
-      // ignore: avoid_print
-      print('Error creating feed: $e');
-    }
-  }
-
   Future<void> _save() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -141,6 +112,7 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
       final durationMinutes = widget.duration.inMinutes;
       final distanceKm = widget.distanceMeters / 1000.0;
 
+      // 1. walk_records에 저장
       await docRef.set({
         // ===== 스키마 매칭 =====
         'walk_id': walkId,
@@ -159,26 +131,56 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
         'is_public': _isPublic,
       });
 
-      // ✅ Firebase 저장 성공 로그 (연동 확인용)
-      // ignore: avoid_print
-      print('walk_records saved: $walkId');
-
-      // ✅ 피드 생성 (공개 설정일 경우에만)
+      // 2. feeds에 저장 (피드 화면에 나타나도록)
       if (_isPublic) {
-        if (postImages.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('피드에 공유하려면 사진을 최소 1장 이상 추가해주세요.')),
-          );
-          return;
+        final feedRef = FirebaseFirestore.instance.collection('feeds').doc();
+        final feedId = feedRef.id;
+
+        // 반려동물 정보 가져오기
+        List<Map<String, dynamic>> petInfo = [];
+        for (final petId in widget.petIds) {
+          final petDoc = await FirebaseFirestore.instance.collection('pets').doc(petId).get();
+          if (petDoc.exists) {
+            final petData = petDoc.data() as Map<String, dynamic>?;
+            if (petData != null) {
+              petInfo.add({
+                'id': petId,
+                'name': petData['name'] ?? petData['pet_name'] ?? '이름 없음',
+                'breed': petData['breed'] ?? petData['pet_breed'] ?? '품종 정보 없음',
+                'imageUrl': petData['imageUrl'] ?? petData['photo_url'] ?? petData['image_url'] ?? '',
+              });
+            }
+          }
         }
-        print('Creating feed for walk: $walkId');
-        print('User ID: $uid');
-        print('Post images count: ${postImages.length}');
-        await _createFeedFromWalk(walkId, uid, postImages);
-        print('Feed creation completed');
-      } else {
-        print('Feed not created - isPublic is false');
+
+        await feedRef.set({
+          'feedId': feedId,
+          'userId': uid,
+          'walkId': walkId, // walk_records 참조
+          'type': 'walk',
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+          'content': _memoCtrl.text.trim(),
+          'moodEmoji': _moodEmoji,
+          'images': postImages,
+          'distanceKm': distanceKm,
+          'durationMinutes': durationMinutes,
+          'startTime': Timestamp.fromDate(widget.startedAt),
+          'endTime': Timestamp.fromDate(widget.endedAt),
+          'route': route,
+          'petIds': widget.petIds,
+          'petInfo': petInfo,
+          'likeCount': 0,
+          'commentCount': 0,
+          'isPublic': true,
+        });
+
+        // ✅ Firebase 저장 성공 로그 (연동 확인용)
+        print('feed saved: $feedId');
       }
+
+      // ✅ Firebase 저장 성공 로그 (연동 확인용)
+      print('walk_records saved: $walkId');
 
       if (_isPublic) {
         await Share.share(
@@ -315,28 +317,9 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
               TextField(
                 controller: _memoCtrl,
                 maxLines: 3,
-                keyboardType: TextInputType.multiline,
-                textInputAction: TextInputAction.newline,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Colors.grey),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF233554)),
-                  ),
-                  hintText: '산책에 대한 메모를 작성해주세요...',
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  contentPadding: const EdgeInsets.all(12),
                 ),
-                style: const TextStyle(
-                  fontSize: 16,
-                  height: 1.4,
-                ),
-                enableSuggestions: true,
-                autocorrect: true,
               ),
 
               const Spacer(),

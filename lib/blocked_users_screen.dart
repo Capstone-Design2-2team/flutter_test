@@ -19,6 +19,27 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   void initState() {
     super.initState();
     _loadBlockedUsers();
+    
+    // 파이어베이스 실시간 감지 설정
+    _setupRealtimeListeners();
+  }
+
+  void _setupRealtimeListeners() {
+    final user = _auth.currentUser;
+    if (user == null) return;
+    
+    // 차단된 사용자 실시간 감지
+    _firestore
+        .collection('blocked_users')
+        .where('userId', isEqualTo: user.uid)
+        .orderBy('blockedAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+          if (mounted) {
+            // 데이터 변경 시 전체 목록 다시 로드
+            _loadBlockedUsers();
+          }
+        });
   }
 
   Future<void> _loadBlockedUsers() async {

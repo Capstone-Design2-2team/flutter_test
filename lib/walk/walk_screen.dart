@@ -5,10 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../pet_registration_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'walk_record_screen.dart';
-import '../feed_screen.dart';
-import '../main_screen.dart';
 
 class WalkScreen extends StatefulWidget {
   final VoidCallback onBackToHome;
@@ -44,7 +43,29 @@ class _WalkScreenState extends State<WalkScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSelectedPets();
     _bootstrap();
+  }
+
+  Future<void> _loadSelectedPets() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final selectedPetIds = prefs.getStringList('selected_pet_ids') ?? [];
+      setState(() {
+        _selectedPetIds.addAll(selectedPetIds);
+      });
+    } catch (e) {
+      print('Error loading selected pets: $e');
+    }
+  }
+
+  Future<void> _saveSelectedPets() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('selected_pet_ids', _selectedPetIds.toList());
+    } catch (e) {
+      print('Error saving selected pets: $e');
+    }
   }
 
   @override
@@ -155,12 +176,6 @@ class _WalkScreenState extends State<WalkScreen> {
   }
 
   Future<void> _startWalk() async {
-    // 등록된 반려동물이 있는지 확인
-    if (_selectedPetIds.isEmpty) {
-      _snack('산책을 시작하려면 반려동물을 선택해주세요.');
-      return;
-    }
-
     final ok = await _ensureLocationReady(interactive: true);
     if (!mounted) return;
 
@@ -258,8 +273,8 @@ class _WalkScreenState extends State<WalkScreen> {
           endedAt: endedAt,
           duration: elapsed,
           distanceMeters: _distanceM,
-          path: List.from(_path),
-          petIds: _selectedPetIds.toList(),
+          path: List<LatLng>.from(_path),
+          petIds: _selectedPetIds.toList(growable: false),
         ),
       ),
     );
@@ -270,22 +285,6 @@ class _WalkScreenState extends State<WalkScreen> {
         _elapsed = Duration.zero;
         _distanceM = 0.0;
         _path.clear();
-      });
-      
-      // 산책 완료 후 홈 화면으로 돌아가서 피드 탭으로 이동
-      Navigator.of(context).pop();
-      // MainScreen으로 돌아간 후 피드 탭으로 자동 이동하도록 콜백 호출
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          widget.onBackToHome();
-          // 부모 위젯에게 피드 탭으로 이동하라고 알리기
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => const MainScreen(),
-              settings: const RouteSettings(arguments: 1), // 피드 탭 인덱스
-            ),
-          );
-        }
       });
     }
   }
@@ -428,11 +427,7 @@ class _WalkScreenState extends State<WalkScreen> {
                               ),
                               onPressed: _permissionOk ? _startWalk : _onPermissionButton,
                               child: Text(
-                                _permissionOk && _selectedPetIds.isNotEmpty 
-                                    ? '산책 시작' 
-                                    : _selectedPetIds.isEmpty 
-                                        ? '산책 시작' 
-                                        : '권한 먼저 허용',
+                                _permissionOk ? '산책 시작' : '권한 먼저 허용',
                                 style: const TextStyle(color: Colors.white, fontSize: 16),
                               ),
                             ),
@@ -501,44 +496,61 @@ class _WalkScreenState extends State<WalkScreen> {
       );
     }
 
+    // 선택된 반려동물이 없으면 + 버튼만 표시
+    if (_selectedPetIds.isEmpty) {
+      return Row(
+        children: [
+          _addPetCircle(context),
+        ],
+      );
+    }
+
+    final petsStream = FirebaseFirestore.instance
+        .collection('pets')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots();
+
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('pets')
-          .where('userId', isEqualTo: user.uid)
-          .snapshots(),
+      stream: petsStream,
       builder: (context, snapshot) {
         final docs = snapshot.data?.docs ?? [];
-        
-        // 선택된 반려동물들만 필터링
-        final selectedPets = docs.where((doc) => _selectedPetIds.contains(doc.id)).toList();
 
-        return Row(
-          children: [
-            // 선택된 반려동물들 표시
-            ...selectedPets.map((doc) {
-              final id = doc.id;
-              final data = doc.data();
-              final name = (data['name'] ?? data['pet_name'] ?? '펫').toString();
-              final photoUrl = (data['imageUrl'] ?? data['photo_url'] ?? data['image_url'] ?? '').toString();
+        if (docs.isEmpty) {
+          return Row(
+            children: [
+              _addPetCircle(context),
+            ],
+          );
+        }
 
-              return _petCircle(
-                label: name,
-                photoUrl: photoUrl.isEmpty ? null : photoUrl,
-                selected: true,
-                onTap: () {
-                  setState(() {
-                    _selectedPetIds.remove(id);
-                  });
-                },
-              );
-            }).toList(),
-            
-            // 선택된 반려동물들 사이의 간격
-            if (selectedPets.isNotEmpty) const SizedBox(width: 10),
-            
-            // 추가 버튼
-            _addPetCircle(context),
-          ],
+        // 선택된 반려동물만 필터링
+        final selectedDocs = docs.where((doc) => _selectedPetIds.contains(doc.id)).toList();
+
+        return ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: selectedDocs.length + 1,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (context, idx) {
+            if (idx == selectedDocs.length) return _addPetCircle(context);
+
+            final d = selectedDocs[idx];
+            final id = d.id;
+            final data = d.data();
+            final name = (data['name'] ?? data['pet_name'] ?? '펫').toString();
+            final photoUrl = (data['imageUrl'] ?? data['photo_url'] ?? data['image_url'] ?? '').toString();
+
+            return _petCircle(
+              label: name,
+              photoUrl: photoUrl.isNotEmpty ? photoUrl : null,
+              selected: true, // 선택된 반려동물이므로 항상 true
+              onTap: () {
+                setState(() {
+                  _selectedPetIds.remove(id); // 선택 해제
+                  _saveSelectedPets(); // 선택 상태 저장
+                });
+              },
+            );
+          },
         );
       },
     );
@@ -595,92 +607,138 @@ class _WalkScreenState extends State<WalkScreen> {
 
   Widget _addPetCircle(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        _showPetSelectionDialog(context);
-      },
-      child: CircleAvatar(
-        radius: 22,
-        backgroundColor: const Color(0xFFE0E0E0),
-        child: const Icon(Icons.add, color: Colors.white),
+      onTap: () => _showPetSelectionDialog(context),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: const Color(0xFFE0E0E0),
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+          const SizedBox(height: 4),
+          const SizedBox(
+            width: 60,
+            child: Text(
+              '추가',
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, height: 1.0, color: Colors.black54),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _showPetSelectionDialog(BuildContext context) async {
+  void _showPetSelectionDialog(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      final petsSnapshot = await FirebaseFirestore.instance
-          .collection('pets')
-          .where('userId', isEqualTo: user.uid)
-          .get();
-
-      final pets = petsSnapshot.docs;
-
-      // 등록된 반려동물이 있을 경우 선택 다이얼로그 표시
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: Text(pets.isEmpty ? '등록된 반려동물이 없습니다' : '반려동물 선택'),
-            content: SizedBox(
-              width: double.maxFinite,
-              height: pets.isEmpty ? 100 : 300,
-              child: pets.isEmpty
-                  ? const Center(
-                      child: Text(
-                        '마이페이지에서 반려동물을 먼저 등록해주세요.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: pets.length,
-                      itemBuilder: (context, index) {
-                        final pet = pets[index];
-                        final petId = pet.id;
-                        final petData = pet.data();
-                        final name = (petData['name'] ?? petData['pet_name'] ?? '펫').toString();
-                        final photoUrl = (petData['imageUrl'] ?? petData['photo_url'] ?? petData['image_url'] ?? '').toString();
-                        final isSelected = _selectedPetIds.contains(petId);
-
-                        return ListTile(
-                          leading: CircleAvatar(
-                            radius: 20,
-                            backgroundImage: photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                            child: photoUrl.isEmpty ? const Icon(Icons.pets, size: 20) : null,
-                          ),
-                          title: Text(name),
-                          trailing: isSelected 
-                              ? const Icon(Icons.check, color: Colors.green)
-                              : const Icon(Icons.add, color: Colors.grey),
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            setState(() {
-                              if (isSelected) {
-                                _selectedPetIds.remove(petId);
-                              } else {
-                                _selectedPetIds.add(petId);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('닫기'),
-              ),
-            ],
-          );
-        },
-      );
-    } catch (e) {
-      print('Error fetching pets: $e');
-      _snack('반려동물 정보를 불러오는데 실패했습니다.');
+    if (user == null) {
+      _snack('로그인이 필요합니다.');
+      return;
     }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('반려동물 선택'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('pets')
+                  .where('userId', isEqualTo: user.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return const Center(child: Text('반려동물을 불러오는 중 오류가 발생했습니다.'));
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.pets_outlined, size: 64, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text('등록된 반려동물이 없습니다.'),
+                        SizedBox(height: 8),
+                        Text('마이페이지에서 반려동물을 등록해주세요.'),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data() as Map<String, dynamic>?;
+                    if (data == null) return const SizedBox.shrink();
+
+                    final petId = doc.id;
+                    final name = data['name'] ?? data['pet_name'] ?? '이름 없음';
+                    final breed = data['breed'] ?? data['pet_breed'] ?? '품종 정보 없음';
+                    final imageUrl = data['imageUrl'] ?? data['photo_url'] ?? data['image_url'] ?? '';
+                    final isSelected = _selectedPetIds.contains(petId);
+
+                    return CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          if (value == true) {
+                            _selectedPetIds.add(petId);
+                          } else {
+                            _selectedPetIds.remove(petId);
+                          }
+                          _saveSelectedPets(); // 선택 상태 저장
+                        });
+                      },
+                      title: Text(name),
+                      subtitle: Text(breed),
+                      secondary: imageUrl.isNotEmpty
+                          ? CircleAvatar(
+                              radius: 20,
+                              backgroundImage: NetworkImage(imageUrl),
+                            )
+                          : const CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Colors.grey,
+                              child: Icon(Icons.pets, color: Colors.white),
+                            ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _snack('${_selectedPetIds.length}마리의 반려동물이 선택되었습니다.');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF233554),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('확인'),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

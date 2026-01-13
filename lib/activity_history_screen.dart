@@ -28,9 +28,9 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
 
       // 산책 기록 가져오기
       final walksSnapshot = await _firestore
-          .collection('walks')
-          .where('userId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
+          .collection('walk_records')
+          .where('user_id', isEqualTo: user.uid)
+          .orderBy('date', descending: true)
           .get();
 
       // 피드 기록 가져오기
@@ -44,16 +44,18 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
 
       // 산책 기록 추가
       for (var doc in walksSnapshot.docs) {
-        final data = doc.data();
-        activities.add({
-          'id': doc.id,
-          'type': 'walk',
-          'title': '산책',
-          'date': data['createdAt'],
-          'distance': data['distanceMeters'] != null ? (data['distanceMeters'] / 1000).toStringAsFixed(2) + 'km' : null,
-          'duration': data['duration'] != null ? _formatDuration(Duration(seconds: data['duration'])) : null,
-          'createdAt': data['createdAt'],
-        });
+        final data = doc.data() as Map<String, dynamic>?;
+        if (data != null) {
+          activities.add({
+            'id': doc.id,
+            'type': 'walk',
+            'title': '산책',
+            'date': data['date'],
+            'distance': data['distance_km'] != null ? '${data['distance_km'].toStringAsFixed(2)}km' : null,
+            'duration': data['duration_minutes'] != null ? _formatDuration(Duration(minutes: data['duration_minutes'])) : null,
+            'createdAt': data['date'],
+          });
+        }
       }
 
       // 피드 기록 추가
