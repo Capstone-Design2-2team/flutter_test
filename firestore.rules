@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 사용자 인증 확인
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // 특정 컬렉션 규칙
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    match /pets/{petId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /feeds/{feedId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    match /walk_records/{recordId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.user_id;
+    }
+  }
+}
