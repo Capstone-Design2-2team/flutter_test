@@ -37,11 +37,16 @@ class PetMoveApp extends StatelessWidget {
       theme: AppTheme.lightTheme,
       // 상태표시줄과 네비게이션 바 설정
       builder: (context, child) {
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            padding: EdgeInsets.zero, // Remove any default padding
+        return GestureDetector(
+          onTap: () {
+            FocusScope.of(context).unfocus();
+          },
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              padding: EdgeInsets.zero, // Remove any default padding
+            ),
+            child: child!,
           ),
-          child: child!,
         );
       },
       home: const StartScreen(),

@@ -186,7 +186,6 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
         }
 
         await feedRef.set({
-          'feedId': feedId,
           'userId': uid,
           'walkId': walkId, // walk_records 참조
           'type': 'walk',

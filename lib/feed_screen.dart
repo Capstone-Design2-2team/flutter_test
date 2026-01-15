@@ -20,6 +20,7 @@ class _FeedScreenState extends State<FeedScreen> {
   void initState() {
     super.initState();
     _loadWalkRecords();
+    print('FeedScreen initialized');
   }
 
   Future<void> _loadWalkRecords() async {
@@ -29,9 +30,9 @@ class _FeedScreenState extends State<FeedScreen> {
     try {
       // 현재 사용자의 산책 기록만 가져오기
       final walkSnapshot = await _firestore
-          .collection('walks')
-          .where('userId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
+          .collection('walk_records')
+          .where('user_id', isEqualTo: user.uid)
+          .orderBy('date', descending: true)
           .get();
 
       // 피드에 있는 기록 ID들 가져오기
@@ -40,14 +41,32 @@ class _FeedScreenState extends State<FeedScreen> {
           .where('userId', isEqualTo: user.uid)
           .get();
 
-      final feedIds = feedSnapshot.docs.map((doc) => doc.id).toSet();
+      final feedWalkIds = feedSnapshot.docs
+          .map((doc) => doc.data()['walkId'] as String?)
+          .where((id) => id != null)
+          .toSet();
 
       // 피드에 없는 산책 기록만 필터링
       final availableWalks = walkSnapshot.docs
           .where((walkDoc) {
-            return !feedIds.contains(walkDoc.id);
+            final walkId = walkDoc.id;
+            return !feedWalkIds.contains(walkId);
           })
-          .map((doc) => doc.data() as Map<String, dynamic>)
+          .map((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            // feed_screen에서 필요한 형식으로 데이터 변환
+            return {
+              'id': doc.id,
+              'userId': data['user_id'],
+              'content': data['memo'] ?? '산책 기록',
+              'images': data['post_images'] ?? [],
+              'petInfo': [], // petInfo는 나중에 필요시 로드
+              'createdAt': data['date'],
+              'distanceKm': data['distance_km'] ?? 0.0,
+              'durationMinutes': data['duration_minutes'] ?? 0,
+              'moodEmoji': data['mood_emoji'] ?? '😊',
+            };
+          })
           .toList();
 
       setState(() {
@@ -105,18 +124,63 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Future<void> _addWalkToFeed(Map<String, dynamic> walkData) async {
     try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      // walk_records에서 원본 데이터 가져오기
+      final walkDoc = await _firestore
+          .collection('walk_records')
+          .doc(walkData['id'] as String)
+          .get();
+
+      if (!walkDoc.exists) {
+        throw Exception('산책 기록을 찾을 수 없습니다.');
+      }
+
+      final recordData = walkDoc.data() as Map<String, dynamic>;
+
+      // 반려동물 정보 가져오기
+      List<Map<String, dynamic>> petInfo = [];
+      final petIds = recordData['pet_ids'] as List<dynamic>? ?? [];
+      
+      for (final petId in petIds) {
+        final petDoc = await _firestore.collection('pets').doc(petId).get();
+        if (petDoc.exists) {
+          final petData = petDoc.data() as Map<String, dynamic>?;
+          if (petData != null) {
+            petInfo.add({
+              'id': petId,
+              'name': petData['name'] ?? petData['pet_name'] ?? '이름 없음',
+              'breed': petData['breed'] ?? petData['pet_breed'] ?? '품종 정보 없음',
+              'imageUrl':
+                  petData['imageUrl'] ??
+                  petData['photo_url'] ??
+                  petData['image_url'] ??
+                  '',
+            });
+          }
+        }
+      }
+
       await _firestore.collection('feeds').add({
-        'userId': walkData['userId'],
-        'content': walkData['content'] ?? '산책 기록',
-        'images': walkData['images'] ?? [],
-        'petInfo': walkData['petInfo'] ?? [],
-        'createdAt': FieldValue.serverTimestamp(),
-        'distanceKm': walkData['distanceKm'] ?? 0.0,
-        'durationMinutes': walkData['durationMinutes'] ?? 0,
-        'moodEmoji': walkData['moodEmoji'] ?? '😊',
-        'likes': 0,
-        'comments': 0,
-        'isPublic': true, // 피드에 공개
+        'userId': user.uid,
+        'walkId': walkData['id'], // walk_records 참조
+        'type': 'walk',
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+        'content': recordData['memo'] ?? '산책 기록',
+        'moodEmoji': recordData['mood_emoji'] ?? '😊',
+        'images': recordData['post_images'] ?? [],
+        'distanceKm': recordData['distance_km'] ?? 0.0,
+        'durationMinutes': recordData['duration_minutes'] ?? 0,
+        'startTime': recordData['start_time'],
+        'endTime': recordData['end_time'],
+        'route': recordData['route'] ?? [],
+        'petIds': petIds,
+        'petInfo': petInfo,
+        'likeCount': 0,
+        'commentCount': 0,
+        'isPublic': true,
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -125,11 +189,14 @@ class _FeedScreenState extends State<FeedScreen> {
           backgroundColor: Colors.green,
         ),
       );
+
+      // 산책 기록 목록 새로고침
+      _loadWalkRecords();
     } catch (e) {
       print('피드 추가 오류: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('피드 추가에 실패했습니다.'),
+        SnackBar(
+          content: Text('피드 추가에 실패했습니다: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -155,6 +222,12 @@ class _FeedScreenState extends State<FeedScreen> {
                   .orderBy('createdAt', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
+                print('StreamBuilder state: ${snapshot.connectionState}');
+                if (snapshot.hasError) {
+                  print('StreamBuilder error: ${snapshot.error}');
+                  print('Error stack trace: ${snapshot.error}');
+                }
+                
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -171,6 +244,20 @@ class _FeedScreenState extends State<FeedScreen> {
                         ),
                         const SizedBox(height: 16),
                         const Text('피드를 불러오는 중 오류가 발생했습니다.'),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.symmetric(horizontal: 32),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '오류 정보:\n${snapshot.error.toString()}',
+                            style: const TextStyle(fontSize: 12, color: Colors.black87),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         ElevatedButton(
                           onPressed: () {
@@ -184,13 +271,13 @@ class _FeedScreenState extends State<FeedScreen> {
                 }
 
                 final docs = snapshot.data?.docs ?? [];
-
-                // isPublic이 true인 피드만 필터링
+                
+                // 클라이언트에서 isPublic 필터링 (null 처리 포함)
                 final publicDocs = docs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>?;
                   if (data == null) return false;
-                  final isPublic = data['isPublic'] as bool? ?? false;
-                  return isPublic;
+                  final isPublic = data['isPublic'] as bool?;
+                  return isPublic == true; // null이 아닌 true인 경우만
                 }).toList();
 
                 if (publicDocs.isEmpty) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -21,14 +22,15 @@ class _LoginScreenState extends State<LoginScreen> {
   // FocusNode 추가
   late FocusNode _idFocusNode;
   late FocusNode _passwordFocusNode;
-  
+
   @override
   void initState() {
     super.initState();
     _idFocusNode = FocusNode();
     _passwordFocusNode = FocusNode();
   }
-  
+
+    
   @override
   void dispose() {
     _idController.dispose();
@@ -128,6 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 backgroundColor: Colors.green,
               ),
             );
+            
             // 로그인 성공 후 메인 화면으로 이동
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (context) => const MainScreen()),
@@ -245,7 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   _login();
                 },
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 height: 50,
