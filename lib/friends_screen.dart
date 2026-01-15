@@ -25,17 +25,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
         toolbarHeight: 40,
         automaticallyImplyLeading: false,
       ),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF233554),
-        elevation: 0,
-        toolbarHeight: 40,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          '친구',
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
       body: Column(
         children: [
           // 1. 검색창 영역 (이미지의 닉네임 검색 부분)
@@ -327,37 +316,37 @@ class _UserListItemState extends State<UserListItem> {
               if (!_isOwnProfile)
                 _isBlocked
                     ? ElevatedButton(
-                        onPressed: null,  // friend_detail_page와 동일하게 null로 설정
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        child: const Text(
-                          '차단됨',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      )
+                  onPressed: null,  // friend_detail_page와 동일하게 null로 설정
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: const Text(
+                    '차단됨',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                )
                     : ElevatedButton(
-                        onPressed: _toggleFollow,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isFollowed ? Colors.grey : const Color(0xFF233554),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        child: Text(
-                          _isFollowed ? '팔로잉' : '팔로우',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                  onPressed: _toggleFollow,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isFollowed ? Colors.grey : const Color(0xFF233554),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: Text(
+                    _isFollowed ? '팔로잉' : '팔로우',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
             ],
           ),
         ),
