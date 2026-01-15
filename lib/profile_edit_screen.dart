@@ -135,28 +135,6 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '프로필 수정',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
-        actions: [
-          TextButton(
-            onPressed: _isLoading ? null : _saveProfile,
-            child: Text(
-              '완료',
-              style: TextStyle(
-                color: _isLoading ? Colors.grey : Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

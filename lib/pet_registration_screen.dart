@@ -247,15 +247,6 @@ class _PetRegistrationScreenState extends State<PetRegistrationScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '반려동물 정보 등록',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
         elevation: 0,
       ),
       body: SingleChildScrollView(

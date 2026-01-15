@@ -24,11 +24,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
         elevation: 0,
         toolbarHeight: 40,
         automaticallyImplyLeading: false,
-        title: const Text(
-          '친구',
-          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
       ),
       body: Column(
         children: [

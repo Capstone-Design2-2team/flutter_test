@@ -20,19 +20,27 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     super.initState();
     _loadBlockedUsers();
     
-    // 파이어베이스 실시간 감지 설정
-    _setupRealtimeListeners();
+    // 실시간 감지는 임시 제거 - 직접 새로고침으로 대체
+    // _setupRealtimeListeners();
+  }
+
+  // 화면이 다시 보일 때마다 데이터 새로고침
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 화면이 다시 보일 때마다 데이터 로드
+    _loadBlockedUsers();
   }
 
   void _setupRealtimeListeners() {
     final user = _auth.currentUser;
     if (user == null) return;
     
-    // 차단된 사용자 실시간 감지
+    // 차단된 사용자 실시간 감지 (timestamp 필드 사용)
     _firestore
         .collection('blocked_users')
         .where('userId', isEqualTo: user.uid)
-        .orderBy('blockedAt', descending: true)
+        .orderBy('timestamp', descending: true)  // blockedAt이 아닌 timestamp로 변경
         .snapshots()
         .listen((snapshot) {
           if (mounted) {
@@ -45,20 +53,47 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   Future<void> _loadBlockedUsers() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        print('No user logged in');
+        setState(() => _isLoading = false);
+        return;
+      }
 
-      // 차단된 사용자 목록 가져오기
+      print('=== DEBUG: Loading blocked users for user: ${user.uid} ===');
+
+      // 1. blocked_users 컬렉션의 모든 데이터 확인
+      final allBlocked = await _firestore.collection('blocked_users').get();
+      print('=== DEBUG: Total blocked records in database: ${allBlocked.docs.length} ===');
+      
+      // 2. 모든 blocked_users 데이터 출력
+      for (var doc in allBlocked.docs) {
+        final data = doc.data();
+        print('=== DEBUG: All blocked record ===');
+        print('  Document ID: ${doc.id}');
+        print('  userId: ${data['userId']}');
+        print('  blockedUserId: ${data['blockedUserId']}');
+        print('  timestamp: ${data['timestamp']}');
+        print('  current_user: ${user.uid}');
+        print('  isMatch: ${data['userId'] == user.uid}');
+        print('  ---');
+      }
+
+      // 3. 현재 사용자의 데이터만 필터링
       final blockedSnapshot = await _firestore
           .collection('blocked_users')
           .where('userId', isEqualTo: user.uid)
-          .orderBy('blockedAt', descending: true)
           .get();
+
+      print('=== DEBUG: Found ${blockedSnapshot.docs.length} blocked user records for current user ===');
 
       List<Map<String, dynamic>> blockedUsers = [];
 
+      // 4. 실제 데이터 추가
       for (var doc in blockedSnapshot.docs) {
         final blockedData = doc.data();
         final blockedUserId = blockedData['blockedUserId'];
+        
+        print('=== DEBUG: Processing blocked user: $blockedUserId ===');
 
         // 차단된 사용자의 상세 정보 가져오기
         final userDoc = await _firestore
@@ -68,23 +103,38 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
 
         if (userDoc.exists) {
           final userData = userDoc.data() as Map<String, dynamic>;
+          print('=== DEBUG: Found user data: ${userData['nickname']} ===');
+          
           blockedUsers.add({
             'id': doc.id,
             'userId': blockedUserId,
             'nickname': userData['nickname'] ?? '알 수 없는 사용자',
             'profileImageUrl': userData['profileImageUrl'] ?? '',
-            'blockedAt': blockedData['blockedAt'],
+            'blockedAt': blockedData['timestamp'],
+          });
+        } else {
+          print('=== DEBUG: User document not found for: $blockedUserId ===');
+          blockedUsers.add({
+            'id': doc.id,
+            'userId': blockedUserId,
+            'nickname': '알 수 없는 사용자',
+            'profileImageUrl': '',
+            'blockedAt': blockedData['timestamp'],
           });
         }
       }
+
+      print('=== DEBUG: Total blocked users to display: ${blockedUsers.length} ===');
 
       setState(() {
         _blockedUsers = blockedUsers;
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading blocked users: $e');
-      setState(() => _isLoading = false);
+      print('=== DEBUG: Error loading blocked users: $e ===');
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -164,15 +214,6 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '차단된 사용자',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

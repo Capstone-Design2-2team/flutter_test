@@ -42,7 +42,7 @@ class UserService {
   static Future<int> getUserPostsCount(String userId) async {
     try {
       QuerySnapshot snapshot = await _firestore
-          .collection('posts')
+          .collection('feeds')
           .where('userId', isEqualTo: userId)
           .get();
       return snapshot.docs.length;
@@ -70,8 +70,8 @@ class UserService {
   static Future<int> getUserFollowersCount(String userId) async {
     try {
       QuerySnapshot snapshot = await _firestore
-          .collection('followers')
-          .where('userId', isEqualTo: userId)
+          .collection('following')
+          .where('followingId', isEqualTo: userId)
           .get();
       return snapshot.docs.length;
     } catch (e) {

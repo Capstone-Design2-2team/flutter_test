@@ -156,15 +156,6 @@ class _WalkRecordEditSimpleScreenState extends State<WalkRecordEditSimpleScreen>
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '산책기록 정보 수정',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        centerTitle: true,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

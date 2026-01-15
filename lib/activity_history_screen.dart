@@ -24,59 +24,68 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
   Future<void> _loadActivityHistory() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        print('No user logged in');
+        setState(() => _isLoading = false);
+        return;
+      }
 
-      // 산책 기록 가져오기
+      print('Loading activity history for user: ${user.uid}');
+
+      // 1. 먼저 walk_records 컬렉션의 모든 데이터 확인 (테스트용)
+      final allWalks = await _firestore.collection('walk_records').get();
+      print('Total walk records in database: ${allWalks.docs.length}');
+      
+      // 2. 현재 사용자의 데이터만 필터링
       final walksSnapshot = await _firestore
           .collection('walk_records')
           .where('user_id', isEqualTo: user.uid)
-          .orderBy('date', descending: true)
           .get();
 
-      // 피드 기록 가져오기
+      print('Found ${walksSnapshot.docs.length} walk records for current user');
+
+      // 3. 모든 walk_records 데이터 출력 (디버깅용)
+      for (var doc in allWalks.docs) {
+        final data = doc.data();
+        print('All walk record - ID: ${doc.id}, user_id: ${data['user_id']}, current_user: ${user.uid}');
+      }
+
+      // 4. feeds 컬렉션도 확인
+      final allFeeds = await _firestore.collection('feeds').get();
+      print('Total feed records in database: ${allFeeds.docs.length}');
+      
       final feedsSnapshot = await _firestore
           .collection('feeds')
           .where('userId', isEqualTo: user.uid)
-          .orderBy('createdAt', descending: true)
           .get();
 
+      print('Found ${feedsSnapshot.docs.length} feed records for current user');
+
+      // 5. 실제 데이터만 추가 (테스트 데이터 제거)
       List<Map<String, dynamic>> activities = [];
 
-      // 산책 기록 추가
+      // 실제 산책 기록 추가
       for (var doc in walksSnapshot.docs) {
         final data = doc.data() as Map<String, dynamic>?;
         if (data != null) {
+          print('Adding walk record: $data');
+          
+          // 날짜 정보 확인
+          Timestamp walkDate = data['date'] ?? Timestamp.now();
+          
           activities.add({
             'id': doc.id,
             'type': 'walk',
             'title': '산책',
-            'date': data['date'],
-            'distance': data['distance_km'] != null ? '${data['distance_km'].toStringAsFixed(2)}km' : null,
-            'duration': data['duration_minutes'] != null ? _formatDuration(Duration(minutes: data['duration_minutes'])) : null,
-            'createdAt': data['date'],
+            'date': walkDate,
+            'distance': data['distance_km'] != null ? '${(data['distance_km'] as double).toStringAsFixed(2)}km' : null,
+            'duration': data['duration_minutes'] != null ? '${data['duration_minutes']}분' : null,
+            'createdAt': walkDate,
           });
         }
       }
 
-      // 피드 기록 추가
-      for (var doc in feedsSnapshot.docs) {
-        final data = doc.data();
-        activities.add({
-          'id': doc.id,
-          'type': 'feed',
-          'title': '피드',
-          'date': data['createdAt'],
-          'description': data['title'] ?? '산책 기록',
-          'createdAt': data['createdAt'],
-        });
-      }
-
-      // 날짜순으로 정렬
-      activities.sort((a, b) {
-        Timestamp dateA = a['createdAt'];
-        Timestamp dateB = b['createdAt'];
-        return dateB.compareTo(dateA);
-      });
+      print('Total activities to display: ${activities.length}');
 
       setState(() {
         _activities = activities;
@@ -84,7 +93,9 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
       });
     } catch (e) {
       print('Error loading activity history: $e');
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -125,15 +136,6 @@ class _ActivityHistoryScreenState extends State<ActivityHistoryScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '나의 활동 이력',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

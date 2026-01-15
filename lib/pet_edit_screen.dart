@@ -4,10 +4,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:teamproject/user_service.dart';
+import 'package:teamproject/pet_update_service.dart';
 
 class PetEditScreen extends StatefulWidget {
   final String petId;
-  const PetEditScreen({super.key, required this.petId});
+  final VoidCallback? onPetUpdated;
+  
+  const PetEditScreen({super.key, required this.petId, this.onPetUpdated});
 
   @override
   State<PetEditScreen> createState() => _PetEditScreenState();
@@ -152,6 +155,10 @@ class _PetEditScreenState extends State<PetEditScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('반려동물 정보가 수정되었습니다.')),
         );
+        // Call the callback to notify other screens
+        widget.onPetUpdated?.call();
+        // Notify global listeners
+        PetUpdateService().notifyPetUpdated();
         Navigator.pop(context);
       }
     } catch (e) {
@@ -182,6 +189,10 @@ class _PetEditScreenState extends State<PetEditScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('반려동물 정보가 삭제되었습니다.')),
         );
+        // Call the callback to notify other screens
+        widget.onPetUpdated?.call();
+        // Notify global listeners
+        PetUpdateService().notifyPetUpdated();
         Navigator.pop(context);
       }
     } catch (e) {
@@ -227,15 +238,6 @@ class _PetEditScreenState extends State<PetEditScreen> {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '반려동물 정보 수정/삭제',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        centerTitle: true,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
