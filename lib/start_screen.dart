@@ -111,19 +111,27 @@ class _StartScreenState extends State<StartScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Spacer(),
-              // 로고 영역 (이미지나 텍스트로 대체)
+              // 상단 여백 (로고와 버튼 사이 간격 조정)
+              const SizedBox(height: 40),
+              
+              // 로고 영역
               const Text(
                 'PETMOVE',
                 style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF233554), letterSpacing: 2),
               ),
-              const Spacer(),
+              
+              // 로고와 버튼 사이 간격
+              const SizedBox(height: 60),
+              
               // 시작하기 버튼
               _buildButton(context, '시작하기', const LoginScreen()),
               const SizedBox(height: 15),
+              
               // 회원가입 버튼
               _buildButton(context, '회원 가입', const SignupScreen()),
-              const SizedBox(height: 60),
+              
+              // 하단 여백
+              const SizedBox(height: 80),
             ],
           ),
         ),

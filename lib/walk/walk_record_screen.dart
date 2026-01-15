@@ -112,6 +112,7 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
       final durationMinutes = widget.duration.inMinutes;
       final distanceKm = widget.distanceMeters / 1000.0;
 
+      // 1. walk_records에 저장
       await docRef.set({
         // ===== 스키마 매칭 =====
         'walk_id': walkId,
@@ -130,8 +131,55 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
         'is_public': _isPublic,
       });
 
+      // 2. feeds에 저장 (피드 화면에 나타나도록)
+      if (_isPublic) {
+        final feedRef = FirebaseFirestore.instance.collection('feeds').doc();
+        final feedId = feedRef.id;
+
+        // 반려동물 정보 가져오기
+        List<Map<String, dynamic>> petInfo = [];
+        for (final petId in widget.petIds) {
+          final petDoc = await FirebaseFirestore.instance.collection('pets').doc(petId).get();
+          if (petDoc.exists) {
+            final petData = petDoc.data() as Map<String, dynamic>?;
+            if (petData != null) {
+              petInfo.add({
+                'id': petId,
+                'name': petData['name'] ?? petData['pet_name'] ?? '이름 없음',
+                'breed': petData['breed'] ?? petData['pet_breed'] ?? '품종 정보 없음',
+                'imageUrl': petData['imageUrl'] ?? petData['photo_url'] ?? petData['image_url'] ?? '',
+              });
+            }
+          }
+        }
+
+        await feedRef.set({
+          'feedId': feedId,
+          'userId': uid,
+          'walkId': walkId, // walk_records 참조
+          'type': 'walk',
+          'createdAt': Timestamp.now(),
+          'updatedAt': Timestamp.now(),
+          'content': _memoCtrl.text.trim(),
+          'moodEmoji': _moodEmoji,
+          'images': postImages,
+          'distanceKm': distanceKm,
+          'durationMinutes': durationMinutes,
+          'startTime': Timestamp.fromDate(widget.startedAt),
+          'endTime': Timestamp.fromDate(widget.endedAt),
+          'route': route,
+          'petIds': widget.petIds,
+          'petInfo': petInfo,
+          'likeCount': 0,
+          'commentCount': 0,
+          'isPublic': true,
+        });
+
+        // ✅ Firebase 저장 성공 로그 (연동 확인용)
+        print('feed saved: $feedId');
+      }
+
       // ✅ Firebase 저장 성공 로그 (연동 확인용)
-      // ignore: avoid_print
       print('walk_records saved: $walkId');
 
       if (_isPublic) {

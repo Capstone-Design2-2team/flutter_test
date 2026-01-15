@@ -1,10 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'start_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 상태표시줄과 네비게이션 바 설정
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.dark,
+    systemNavigationBarDividerColor: Colors.transparent,
+  ));
+  
+  // 네비게이션 바 숨김 설정
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
@@ -19,10 +34,16 @@ class PetMoveApp extends StatelessWidget {
     return MaterialApp(
       title: 'PETMOVE',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primaryColor: const Color(0), // 남색 테마
-        scaffoldBackgroundColor: Colors.white,
-      ),
+      theme: AppTheme.lightTheme,
+      // 상태표시줄과 네비게이션 바 설정
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            padding: EdgeInsets.zero, // Remove any default padding
+          ),
+          child: child!,
+        );
+      },
       home: const StartScreen(),
     );
   }

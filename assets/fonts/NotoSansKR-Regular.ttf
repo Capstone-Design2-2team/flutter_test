@@ -1,0 +1,4 @@
+# This is a placeholder file
+# In a real project, you would download the actual Noto Sans KR font files from:
+# https://fonts.google.com/noto/specimen/Noto+Sans+KR
+# For now, Flutter will use the system default font which supports Korean

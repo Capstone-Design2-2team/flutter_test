@@ -42,7 +42,7 @@ class UserService {
   static Future<int> getUserPostsCount(String userId) async {
     try {
       QuerySnapshot snapshot = await _firestore
-          .collection('posts')
+          .collection('feeds')
           .where('userId', isEqualTo: userId)
           .get();
       return snapshot.docs.length;
@@ -70,8 +70,8 @@ class UserService {
   static Future<int> getUserFollowersCount(String userId) async {
     try {
       QuerySnapshot snapshot = await _firestore
-          .collection('followers')
-          .where('userId', isEqualTo: userId)
+          .collection('following')
+          .where('followingId', isEqualTo: userId)
           .get();
       return snapshot.docs.length;
     } catch (e) {
@@ -115,7 +115,11 @@ class UserService {
           .where('userId', isEqualTo: userId)
           .get();
       
-      return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id; // 문서 ID 추가
+        return data;
+      }).toList();
     } catch (e) {
       print('반려동물 정보 가져오기 오류: $e');
       return [];

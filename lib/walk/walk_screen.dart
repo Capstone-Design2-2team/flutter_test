@@ -5,13 +5,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'walk_record_screen.dart';
+import '../main_screen.dart';
+import '../feed_screen.dart';
+import '../friends_screen.dart';
+import '../my_page_screen.dart';
 
 class WalkScreen extends StatefulWidget {
   final VoidCallback onBackToHome;
+  final bool showOnlyWalkTab;
 
-  const WalkScreen({super.key, required this.onBackToHome});
+  const WalkScreen({
+    super.key, 
+    required this.onBackToHome,
+    this.showOnlyWalkTab = false,
+  });
 
   @override
   State<WalkScreen> createState() => _WalkScreenState();
@@ -42,7 +52,29 @@ class _WalkScreenState extends State<WalkScreen> {
   @override
   void initState() {
     super.initState();
+    _loadSelectedPets();
     _bootstrap();
+  }
+
+  Future<void> _loadSelectedPets() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final selectedPetIds = prefs.getStringList('selected_pet_ids') ?? [];
+      setState(() {
+        _selectedPetIds.addAll(selectedPetIds);
+      });
+    } catch (e) {
+      print('Error loading selected pets: $e');
+    }
+  }
+
+  Future<void> _saveSelectedPets() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('selected_pet_ids', _selectedPetIds.toList());
+    } catch (e) {
+      print('Error saving selected pets: $e');
+    }
   }
 
   @override
@@ -284,141 +316,138 @@ class _WalkScreenState extends State<WalkScreen> {
         ? (h * 0.36).clamp(280.0, 380.0)
         : (h * 0.32).clamp(250.0, 350.0);
 
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: _permissionOk
-              ? GoogleMap(
-            initialCameraPosition: CameraPosition(target: _cameraCenter, zoom: 17),
-            onMapCreated: (c) => _map = c,
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
-            zoomControlsEnabled: false,
-            polylines: {
-              if (_path.length >= 2)
-                Polyline(
-                  polylineId: const PolylineId('walk'),
-                  points: _path,
-                  width: 6,
-                ),
-            },
-          )
-              : Container(
-            color: const Color(0xFFEFEFEF),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.location_off, size: 44),
-                    const SizedBox(height: 12),
-                    const Text(
-                      '위치 권한/위치 서비스(GPS)가 필요합니다.\n버튼을 눌러 설정을 진행해 주세요.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 44,
-                      child: ElevatedButton(
-                        onPressed: _requesting ? null : _onPermissionButton,
-                        child: _requesting
-                            ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                            : const Text('권한 요청 / 설정 열기'),
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF233554),
+        elevation: 0,
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: _permissionOk
+                ? GoogleMap(
+              initialCameraPosition: CameraPosition(target: _cameraCenter, zoom: 17),
+              onMapCreated: (c) => _map = c,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: true,
+              zoomControlsEnabled: false,
+              polylines: {
+                if (_path.length >= 2)
+                  Polyline(
+                    polylineId: const PolylineId('walk'),
+                    points: _path,
+                    width: 6,
+                  ),
+              },
+            )
+                : Container(
+              color: const Color(0xFFEFEFEF),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.location_off, size: 44),
+                      const SizedBox(height: 12),
+                      const Text(
+                        '위치 권한/위치 서비스(GPS)가 필요합니다.\n버튼을 눌러 설정을 진행해 주세요.',
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: _requesting ? null : _onPermissionButton,
+                          child: _requesting
+                              ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                              : const Text('권한 요청 / 설정 열기'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
 
-        Positioned(
-          top: MediaQuery.of(context).padding.top + 6,
-          left: 4,
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-            onPressed: widget.onBackToHome,
-          ),
-        ),
-
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: SizedBox(
-            height: panelHeight,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-                boxShadow: [
-                  BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, -2)),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(
-                          height: 74,
-                          child: Align(alignment: Alignment.centerLeft, child: _buildPetsRow(context)),
-                        ),
-                        const SizedBox(height: 16),
-
-                        if (_isWalking) ...[
-                          _statsBox(
-                            leftLabel: '산책시간',
-                            leftValue: _fmtDuration(_elapsed),
-                            rightLabel: '거리',
-                            rightValue: '${_fmtKm(_distanceM)}km',
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SizedBox(
+              height: panelHeight,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                  boxShadow: [
+                    BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, -2)),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            height: 74,
+                            child: Align(alignment: Alignment.centerLeft, child: _buildPetsRow(context)),
                           ),
                           const SizedBox(height: 16),
-                          SizedBox(
-                            height: 46,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF233554),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: _stopWalk,
-                              child: const Text('산책 종료', style: TextStyle(color: Colors.white)),
+
+                          if (_isWalking) ...[
+                            _statsBox(
+                              leftLabel: '산책시간',
+                              leftValue: _fmtDuration(_elapsed),
+                              rightLabel: '거리',
+                              rightValue: '${_fmtKm(_distanceM)}km',
                             ),
-                          ),
-                        ] else ...[
-                          SizedBox(
-                            height: 50,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF233554),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
-                              ),
-                              onPressed: _permissionOk ? _startWalk : _onPermissionButton,
-                              child: Text(
-                                _permissionOk ? '산책 시작' : '권한 먼저 허용',
-                                style: const TextStyle(color: Colors.white, fontSize: 16),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              height: 46,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF233554),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: _stopWalk,
+                                child: const Text('산책 종료', style: TextStyle(color: Colors.white)),
                               ),
                             ),
-                          ),
+                          ] else ...[
+                            SizedBox(
+                              height: 50,
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF233554),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+                                ),
+                                onPressed: _permissionOk ? _startWalk : _onPermissionButton,
+                                child: Text(
+                                  _permissionOk ? '산책 시작' : '권한 먼저 허용',
+                                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -473,10 +502,18 @@ class _WalkScreenState extends State<WalkScreen> {
       );
     }
 
+    // 선택된 반려동물이 없으면 + 버튼만 표시
+    if (_selectedPetIds.isEmpty) {
+      return Row(
+        children: [
+          _addPetCircle(context),
+        ],
+      );
+    }
+
     final petsStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
         .collection('pets')
+        .where('userId', isEqualTo: user.uid)
         .snapshots();
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -487,41 +524,35 @@ class _WalkScreenState extends State<WalkScreen> {
         if (docs.isEmpty) {
           return Row(
             children: [
-              _petCircle(icon: Icons.pets, label: '펫', selected: false, onTap: null),
-              const SizedBox(width: 10),
-              _petCircle(icon: Icons.pets, label: '펫', selected: false, onTap: null),
-              const SizedBox(width: 10),
               _addPetCircle(context),
             ],
           );
         }
 
+        // 선택된 반려동물만 필터링
+        final selectedDocs = docs.where((doc) => _selectedPetIds.contains(doc.id)).toList();
+
         return ListView.separated(
           scrollDirection: Axis.horizontal,
-          itemCount: docs.length + 1,
+          itemCount: selectedDocs.length + 1,
           separatorBuilder: (_, __) => const SizedBox(width: 10),
           itemBuilder: (context, idx) {
-            if (idx == docs.length) return _addPetCircle(context);
+            if (idx == selectedDocs.length) return _addPetCircle(context);
 
-            final d = docs[idx];
+            final d = selectedDocs[idx];
             final id = d.id;
             final data = d.data();
             final name = (data['name'] ?? data['pet_name'] ?? '펫').toString();
-            final photoUrl = (data['photo_url'] ?? data['image_url'] ?? '').toString();
-
-            final selected = _selectedPetIds.contains(id);
+            final photoUrl = (data['imageUrl'] ?? data['photo_url'] ?? data['image_url'] ?? '').toString();
 
             return _petCircle(
               label: name,
-              photoUrl: photoUrl.isEmpty ? null : photoUrl,
-              selected: selected,
+              photoUrl: photoUrl.isNotEmpty ? photoUrl : null,
+              selected: true, // 선택된 반려동물이므로 항상 true
               onTap: () {
                 setState(() {
-                  if (selected) {
-                    _selectedPetIds.remove(id);
-                  } else {
-                    _selectedPetIds.add(id);
-                  }
+                  _selectedPetIds.remove(id); // 선택 해제
+                  _saveSelectedPets(); // 선택 상태 저장
                 });
               },
             );
@@ -582,12 +613,167 @@ class _WalkScreenState extends State<WalkScreen> {
 
   Widget _addPetCircle(BuildContext context) {
     return GestureDetector(
-      onTap: () => _snack('펫 추가/관리 화면은 아직 연결되지 않았습니다.'),
-      child: const CircleAvatar(
-        radius: 22,
-        backgroundColor: Color(0xFFE0E0E0),
-        child: Icon(Icons.add, color: Colors.white),
+      onTap: () => _showPetSelectionDialog(context),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: const Color(0xFFE0E0E0),
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+          const SizedBox(height: 4),
+          const SizedBox(
+            width: 60,
+            child: Text(
+              '추가',
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, height: 1.0, color: Colors.black54),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  void _showPetSelectionDialog(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _snack('로그인이 필요합니다.');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('반려동물 선택'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('pets')
+                  .where('userId', isEqualTo: user.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return const Center(child: Text('반려동물을 불러오는 중 오류가 발생했습니다.'));
+                }
+
+                final docs = snapshot.data?.docs ?? [];
+
+                if (docs.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.pets_outlined, size: 64, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text('등록된 반려동물이 없습니다.'),
+                        SizedBox(height: 8),
+                        Text('마이페이지에서 반려동물을 등록해주세요.'),
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data() as Map<String, dynamic>?;
+                    if (data == null) return const SizedBox.shrink();
+
+                    final petId = doc.id;
+                    final name = data['name'] ?? data['pet_name'] ?? '이름 없음';
+                    final breed = data['breed'] ?? data['pet_breed'] ?? '품종 정보 없음';
+                    final imageUrl = data['imageUrl'] ?? data['photo_url'] ?? data['image_url'] ?? '';
+                    final isSelected = _selectedPetIds.contains(petId);
+
+                    return CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          if (value == true) {
+                            _selectedPetIds.add(petId);
+                          } else {
+                            _selectedPetIds.remove(petId);
+                          }
+                          _saveSelectedPets(); // 선택 상태 저장
+                        });
+                      },
+                      title: Text(name),
+                      subtitle: Text(breed),
+                      secondary: imageUrl.isNotEmpty
+                          ? CircleAvatar(
+                              radius: 20,
+                              backgroundImage: NetworkImage(imageUrl),
+                            )
+                          : const CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Colors.grey,
+                              child: Icon(Icons.pets, color: Colors.white),
+                            ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _snack('${_selectedPetIds.length}마리의 반려동물이 선택되었습니다.');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF233554),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('확인'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class BoneIconPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+    final radius = size.width / 6;
+
+    canvas.drawCircle(Offset(centerX - size.width / 4, centerY), radius, paint);
+    canvas.drawCircle(Offset(centerX + size.width / 4, centerY), radius, paint);
+
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(centerX, centerY),
+        width: size.width / 2,
+        height: radius * 1.5,
+      ),
+      Radius.circular(radius / 2),
+    );
+    canvas.drawRRect(rect, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

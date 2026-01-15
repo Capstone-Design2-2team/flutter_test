@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'friend_detail_page.dart';
 import 'user_service.dart';
 
@@ -19,12 +20,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF233554),
-        elevation: 0,
-        toolbarHeight: 40,
-        automaticallyImplyLeading: false,
-      ),
       appBar: AppBar(
         backgroundColor: const Color(0xFF233554),
         elevation: 0,
@@ -124,6 +119,7 @@ class UserListItem extends StatefulWidget {
 
 class _UserListItemState extends State<UserListItem> {
   bool _isFollowed = false;
+  bool _isLoading = false;
   bool _isBlocked = false;
   bool _isOwnProfile = false;
   StreamSubscription<QuerySnapshot>? _followSubscription;
@@ -132,6 +128,26 @@ class _UserListItemState extends State<UserListItem> {
   @override
   void initState() {
     super.initState();
+    _checkFollowStatus();
+  }
+
+  Future<void> _checkFollowStatus() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      final followingDoc = await FirebaseFirestore.instance
+          .collection('following')
+          .where('userId', isEqualTo: currentUser.uid)
+          .where('followingId', isEqualTo: widget.user['uid'])
+          .get();
+
+      setState(() {
+        _isFollowed = followingDoc.docs.isNotEmpty;
+      });
+    } catch (e) {
+      print('Error checking follow status: $e');
+    }
     _checkIfOwnProfile();
     _setupRealtimeListeners();
   }
@@ -171,10 +187,10 @@ class _UserListItemState extends State<UserListItem> {
   void _setupRealtimeListeners() {
     final currentUserId = UserService.getCurrentUserId();
     final targetUserId = widget.user['uid'];
-
+    
     // 기존 리스너 정리
     _disposeListeners();
-
+    
     if (currentUserId != null && targetUserId != null && !_isOwnProfile) {
       // 팔로우 상태 실시간 감지
       _followSubscription = FirebaseFirestore.instance
@@ -207,163 +223,188 @@ class _UserListItemState extends State<UserListItem> {
   }
 
   Future<void> _toggleFollow() async {
-    final currentUserId = UserService.getCurrentUserId();
-    final targetUserId = widget.user['uid'];
+    if (_isLoading) return;
+    
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
 
-    if (currentUserId != null && targetUserId != null) {
+    setState(() => _isLoading = true);
+
+    try {
       if (_isFollowed) {
-        // 팔로우 취소
-        final followingDocs = await FirebaseFirestore.instance
+        // 언팔로우
+        await FirebaseFirestore.instance
             .collection('following')
-            .where('userId', isEqualTo: currentUserId)
-            .where('followingId', isEqualTo: targetUserId)
-            .get();
+            .where('userId', isEqualTo: currentUser.uid)
+            .where('followingId', isEqualTo: widget.user['uid'])
+            .get()
+            .then((snapshot) {
+          for (var doc in snapshot.docs) {
+            doc.reference.delete();
+          }
+        });
 
-        for (var doc in followingDocs.docs) {
-          await doc.reference.delete();
-        }
-
-        final followersDocs = await FirebaseFirestore.instance
+        await FirebaseFirestore.instance
             .collection('followers')
-            .where('userId', isEqualTo: targetUserId)
-            .where('followerId', isEqualTo: currentUserId)
-            .get();
-
-        for (var doc in followersDocs.docs) {
-          await doc.reference.delete();
-        }
+            .where('userId', isEqualTo: widget.user['uid'])
+            .where('followerId', isEqualTo: currentUser.uid)
+            .get()
+            .then((snapshot) {
+          for (var doc in snapshot.docs) {
+            doc.reference.delete();
+          }
+        });
       } else {
-        // 팔로우 - 중복 체크 후 추가
-        final existingFollowing = await FirebaseFirestore.instance
-            .collection('following')
-            .where('userId', isEqualTo: currentUserId)
-            .where('followingId', isEqualTo: targetUserId)
-            .get();
+        // 팔로우
+        await FirebaseFirestore.instance.collection('following').add({
+          'userId': currentUser.uid,
+          'followingId': widget.user['uid'],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
 
-        if (existingFollowing.docs.isEmpty) {
-          // 팔로우 관계가 없을 때만 추가
-          await FirebaseFirestore.instance
-              .collection('following')
-              .add({
-            'userId': currentUserId,
-            'followingId': targetUserId,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-
-          await FirebaseFirestore.instance
-              .collection('followers')
-              .add({
-            'userId': targetUserId,
-            'followerId': currentUserId,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-        }
+        await FirebaseFirestore.instance.collection('followers').add({
+          'userId': widget.user['uid'],
+          'followerId': currentUser.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       }
 
-      // 상태는 실시간 리스너가 업데이트하므로 setState 불필요
+      setState(() {
+        _isFollowed = !_isFollowed;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isFollowed ? '팔로우를 취소했습니다.' : '팔로우했습니다.'),
+          backgroundColor: const Color(0xFF233554),
+        ),
+      );
+    } catch (e) {
+      print('Error toggling follow: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('오류가 발생했습니다.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          child: Row(
-            children: [
-              // 프로필 아이콘 (이미지의 원형 아이콘)
-              Container(
-                width: 65,
-                height: 65,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF233554),
-                ),
-                child: const Icon(
-                  Icons.person_outline, // 이미지의 사람 실루엣 아이콘
-                  color: Colors.white,
-                  size: 40,
-                ),
-              ),
-              const SizedBox(width: 15),
-
-              // 닉네임 및 한 줄 소개
-              Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => FriendDetailPage(user: widget.user),
-                      ),
-                    );
-                  },
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.user['nickname'] ?? '닉네임',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.user['introduction'] ?? '한 줄 소개',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // 프로필 이미지
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              shape: BoxShape.circle,
+            ),
+            child: widget.user['profileImageUrl'] != null && widget.user['profileImageUrl'].isNotEmpty
+                ? ClipOval(
+                    child: Image.network(
+                      widget.user['profileImageUrl'],
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.person, color: Colors.grey);
+                      },
+                    ),
+                  )
+                : const Icon(Icons.person, color: Colors.grey),
+          ),
+          const SizedBox(width: 12),
+          
+          // 사용자 정보
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.user['nickname'] ?? '닉네임 없음',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
                 ),
-              ),
-
-              // 팔로우 버튼 (이미지의 짙은 남색 버튼)
-              if (!_isOwnProfile)
-                _isBlocked
-                    ? ElevatedButton(
-                        onPressed: null,  // friend_detail_page와 동일하게 null로 설정
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        child: const Text(
-                          '차단됨',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      )
-                    : ElevatedButton(
-                        onPressed: _toggleFollow,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isFollowed ? Colors.grey : const Color(0xFF233554),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        child: Text(
-                          _isFollowed ? '팔로잉' : '팔로우',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  widget.user['statusMessage'] ?? '상태 메시지 없음',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-        ),
-        // 리스트 아이템 사이의 구분선 (선택 사항)
-        const Divider(height: 1, thickness: 0.5, indent: 20, endIndent: 20),
-      ],
+          
+          // 팔로우/차단 버튼
+          if (!_isOwnProfile)
+            Row(
+              children: [
+                if (_isBlocked)
+                  ElevatedButton(
+                    onPressed: null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text('차단됨', style: TextStyle(fontSize: 12)),
+                  )
+                else
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _toggleFollow,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _isFollowed ? Colors.grey : const Color(0xFF233554),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(Colors.white),
+                            ),
+                          )
+                        : Text(_isFollowed ? '팔로잉' : '팔로우', style: const TextStyle(fontSize: 12)),
+                  ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

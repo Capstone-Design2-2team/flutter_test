@@ -17,6 +17,26 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // FocusNode 추가
+  late FocusNode _idFocusNode;
+  late FocusNode _passwordFocusNode;
+  
+  @override
+  void initState() {
+    super.initState();
+    _idFocusNode = FocusNode();
+    _passwordFocusNode = FocusNode();
+  }
+  
+  @override
+  void dispose() {
+    _idController.dispose();
+    _passwordController.dispose();
+    _idFocusNode.dispose();
+    _passwordFocusNode.dispose();
+    super.dispose();
+  }
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
@@ -167,13 +187,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  void dispose() {
-    _idController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -198,23 +211,39 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 40),
               TextFormField(
                 controller: _idController,
+                focusNode: _idFocusNode,
                 decoration: const InputDecoration(
                   labelText: '아이디/닉네임',
                   hintText: '이메일 또는 닉네임을 입력하시오.',
                   border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
+                style: const TextStyle(fontSize: 16),
                 validator: _validateId,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) {
+                  // 아이디 입력 후 다음 버튼을 누르면 비밀번호 필드로 포커스 이동
+                  FocusScope.of(context).requestFocus(_passwordFocusNode);
+                },
               ),
               const SizedBox(height: 20),
               TextFormField(
                 controller: _passwordController,
+                focusNode: _passwordFocusNode,
                 obscureText: true,
                 decoration: const InputDecoration(
                   labelText: '비밀번호',
                   hintText: '비밀번호 입력하시오.',
                   border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
+                style: const TextStyle(fontSize: 16),
                 validator: _validatePassword,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) {
+                  // 비밀번호 입력 후 완료 버튼을 누르면 로그인 실행
+                  _login();
+                },
               ),
               const SizedBox(height: 40),
               SizedBox(
