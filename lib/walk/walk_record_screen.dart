@@ -6,7 +6,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:share_plus/share_plus.dart';
 
 class WalkRecordScreen extends StatefulWidget {
   final DateTime startedAt;
@@ -15,6 +14,7 @@ class WalkRecordScreen extends StatefulWidget {
   final double distanceMeters;
   final List<LatLng> path;
   final List<String> petIds;
+  final bool shareToFeed; // 피드 공유 여부
 
   const WalkRecordScreen({
     super.key,
@@ -24,6 +24,7 @@ class WalkRecordScreen extends StatefulWidget {
     required this.distanceMeters,
     required this.path,
     required this.petIds,
+    this.shareToFeed = false, // 기본값은 false
   });
 
   @override
@@ -35,9 +36,18 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
 
   bool _isPublic = false; // is_public
   String _moodEmoji = '😊'; // mood_emoji
-
   final List<XFile> _photos = <XFile>[]; // post_images
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // shareToFeed 파라미터에 따라 _isPublic 상태 설정
+    // shareToFeed가 true이면 피드 공유 체크, false이면 기본 저장
+    setState(() {
+      _isPublic = widget.shareToFeed;
+    });
+  }
 
   @override
   void dispose() {
@@ -88,9 +98,16 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
   Future<void> _save() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+      return;
+    }
+
+    // 사진 필수 체크
+    if (_photos.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인이 필요합니다.')),
-      );
+        const SnackBar(content: Text('산책 사진을 최소 1장 이상 추가해주세요.')));
       return;
     }
 
@@ -99,15 +116,23 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
     try {
       final uid = user.uid;
 
-      final docRef = FirebaseFirestore.instance.collection('walk_records').doc();
+      final docRef = FirebaseFirestore.instance
+          .collection('walk_records')
+          .doc();
       final walkId = docRef.id;
 
       final postImages = await _uploadPhotos(walkId: walkId);
 
       final sampled = _samplePath(widget.path, maxPoints: 400);
-      final route = sampled.map((p) => GeoPoint(p.latitude, p.longitude)).toList();
+      final route = sampled
+          .map((p) => GeoPoint(p.latitude, p.longitude))
+          .toList();
 
-      final dateOnly = DateTime(widget.startedAt.year, widget.startedAt.month, widget.startedAt.day);
+      final dateOnly = DateTime(
+        widget.startedAt.year,
+        widget.startedAt.month,
+        widget.startedAt.day,
+      );
 
       final durationMinutes = widget.duration.inMinutes;
       final distanceKm = widget.distanceMeters / 1000.0;
@@ -131,7 +156,7 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
         'is_public': _isPublic,
       });
 
-      // 2. feeds에 저장 (피드 화면에 나타나도록)
+      // 2. feeds에 저장 (공유 체크박스가 선택된 경우에만)
       if (_isPublic) {
         final feedRef = FirebaseFirestore.instance.collection('feeds').doc();
         final feedId = feedRef.id;
@@ -139,7 +164,10 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
         // 반려동물 정보 가져오기
         List<Map<String, dynamic>> petInfo = [];
         for (final petId in widget.petIds) {
-          final petDoc = await FirebaseFirestore.instance.collection('pets').doc(petId).get();
+          final petDoc = await FirebaseFirestore.instance
+              .collection('pets')
+              .doc(petId)
+              .get();
           if (petDoc.exists) {
             final petData = petDoc.data() as Map<String, dynamic>?;
             if (petData != null) {
@@ -147,7 +175,11 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
                 'id': petId,
                 'name': petData['name'] ?? petData['pet_name'] ?? '이름 없음',
                 'breed': petData['breed'] ?? petData['pet_breed'] ?? '품종 정보 없음',
-                'imageUrl': petData['imageUrl'] ?? petData['photo_url'] ?? petData['image_url'] ?? '',
+                'imageUrl':
+                    petData['imageUrl'] ??
+                    petData['photo_url'] ??
+                    petData['image_url'] ??
+                    '',
               });
             }
           }
@@ -172,35 +204,31 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
           'petInfo': petInfo,
           'likeCount': 0,
           'commentCount': 0,
-          'isPublic': true,
+          'isPublic': _isPublic,
         });
 
         // ✅ Firebase 저장 성공 로그 (연동 확인용)
         print('feed saved: $feedId');
+      } else {
+        print('feed not saved - public sharing not checked');
       }
 
       // ✅ Firebase 저장 성공 로그 (연동 확인용)
       print('walk_records saved: $walkId');
 
-      if (_isPublic) {
-        await Share.share(
-          '산책 기록\n시간: ${_fmtMin(widget.duration)}\n거리: ${distanceKm.toStringAsFixed(2)}km\n메모: ${_memoCtrl.text.trim()}',
-        );
-      }
-
       if (!mounted) return;
       Navigator.of(context).pop(true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('산책 기록이 저장되었습니다.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('산책 기록이 저장되었습니다.')));
     } catch (e) {
       // ignore: avoid_print
       print('walk_records save error: $e');
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('저장 실패: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -227,9 +255,15 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
             children: [
               // 시간/거리
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFF233554), width: 1.5),
+                  border: Border.all(
+                    color: const Color(0xFF233554),
+                    width: 1.5,
+                  ),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
@@ -237,20 +271,47 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
                     Expanded(
                       child: Column(
                         children: [
-                          const Text('산책시간', style: TextStyle(color: Color(0xFF233554), fontWeight: FontWeight.w600)),
+                          const Text(
+                            '산책시간',
+                            style: TextStyle(
+                              color: Color(0xFF233554),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const SizedBox(height: 4),
-                          Text(_fmtMin(widget.duration),
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          Text(
+                            _fmtMin(widget.duration),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                    Container(width: 1, height: 44, color: const Color(0x33233554)),
+                    Container(
+                      width: 1,
+                      height: 44,
+                      color: const Color(0x33233554),
+                    ),
                     Expanded(
                       child: Column(
                         children: [
-                          const Text('거리', style: TextStyle(color: Color(0xFF233554), fontWeight: FontWeight.w600)),
+                          const Text(
+                            '거리',
+                            style: TextStyle(
+                              color: Color(0xFF233554),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const SizedBox(height: 4),
-                          Text('$distKm km', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          Text(
+                            '$distKm km',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -263,12 +324,23 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
               // 기분
               Row(
                 children: [
-                  const Text('기분', style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text(
+                    '기분',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(width: 10),
                   DropdownButton<String>(
                     value: _moodEmoji,
                     items: const ['😊', '😍', '😎', '😴', '😡', '😭']
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontSize: 22))))
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(
+                              e,
+                              style: const TextStyle(fontSize: 22),
+                            ),
+                          ),
+                        )
                         .toList(),
                     onChanged: (v) => setState(() => _moodEmoji = v ?? '😊'),
                   ),
@@ -290,7 +362,13 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: _photos.isEmpty
-                      ? const Center(child: Icon(Icons.add, size: 40, color: Colors.black45))
+                      ? const Center(
+                          child: Icon(
+                            Icons.add,
+                            size: 40,
+                            color: Colors.black45,
+                          ),
+                        )
                       : ListView.separated(
                           padding: const EdgeInsets.all(8),
                           scrollDirection: Axis.horizontal,
@@ -318,7 +396,9 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
                 controller: _memoCtrl,
                 maxLines: 3,
                 decoration: InputDecoration(
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
 
@@ -330,14 +410,16 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
                     value: _isPublic,
                     onChanged: (v) => setState(() => _isPublic = v ?? false),
                   ),
-                  const Text('기록 공유하기'),
+                  const Text('피드에 공유하기'),
                   const Spacer(),
                   SizedBox(
                     height: 44,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF233554),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                         padding: const EdgeInsets.symmetric(horizontal: 18),
                       ),
                       onPressed: _saving ? null : _save,
@@ -347,10 +429,15 @@ class _WalkRecordScreenState extends State<WalkRecordScreen> {
                               height: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(Colors.white),
+                                valueColor: AlwaysStoppedAnimation(
+                                  Colors.white,
+                                ),
                               ),
                             )
-                          : const Text('완료', style: TextStyle(color: Colors.white)),
+                          : const Text(
+                              '완료',
+                              style: TextStyle(color: Colors.white),
+                            ),
                     ),
                   ),
                 ],

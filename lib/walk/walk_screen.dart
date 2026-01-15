@@ -1,12 +1,10 @@
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'walk_record_screen.dart';
 import '../main_screen.dart';
 import '../feed_screen.dart';
@@ -16,11 +14,13 @@ import '../my_page_screen.dart';
 class WalkScreen extends StatefulWidget {
   final VoidCallback onBackToHome;
   final bool showOnlyWalkTab;
+  final bool shareToFeed; // 피드 공유 여부 파라미터 추가
 
   const WalkScreen({
-    super.key, 
+    super.key,
     required this.onBackToHome,
     this.showOnlyWalkTab = false,
+    this.shareToFeed = false, // 기본값 설정
   });
 
   @override
@@ -39,15 +39,17 @@ class _WalkScreenState extends State<WalkScreen> {
   Timer? _tick;
   Duration _elapsed = Duration.zero;
 
-  StreamSubscription<Position>? _posSub;
-  Position? _lastPos;
-
   double _distanceM = 0.0;
   final List<LatLng> _path = <LatLng>[];
 
   LatLng _cameraCenter = const LatLng(37.5665, 126.9780);
 
   final Set<String> _selectedPetIds = <String>{};
+
+  bool _shareToFeed = false; // 피드 공유 여부 필드
+
+  StreamSubscription<Position>? _posSub;
+  Position? _lastPos;
 
   @override
   void initState() {
@@ -133,8 +135,14 @@ class _WalkScreenState extends State<WalkScreen> {
           title: const Text('위치 권한 필요'),
           content: const Text('현재 “다시 묻지 않음” 상태입니다.\n앱 설정에서 위치 권한을 허용해 주세요.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('설정 열기')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('설정 열기'),
+            ),
           ],
         ),
       );
@@ -158,7 +166,9 @@ class _WalkScreenState extends State<WalkScreen> {
       _lastPos = pos;
 
       if (_map != null) {
-        await _map!.animateCamera(CameraUpdate.newLatLngZoom(_cameraCenter, 17));
+        await _map!.animateCamera(
+          CameraUpdate.newLatLngZoom(_cameraCenter, 17),
+        );
       }
       if (mounted) setState(() {});
     } catch (e) {
@@ -221,40 +231,41 @@ class _WalkScreenState extends State<WalkScreen> {
     });
 
     await _posSub?.cancel();
-    _posSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 5,
-      ),
-    ).listen((pos) async {
-      if (!_isWalking) return;
+    _posSub =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.bestForNavigation,
+            distanceFilter: 5,
+          ),
+        ).listen((pos) async {
+          if (!_isWalking) return;
 
-      final prev = _lastPos;
-      _lastPos = pos;
+          final prev = _lastPos;
+          _lastPos = pos;
 
-      final p = LatLng(pos.latitude, pos.longitude);
-      _cameraCenter = p;
+          final p = LatLng(pos.latitude, pos.longitude);
+          _cameraCenter = p;
 
-      if (prev != null) {
-        final d = Geolocator.distanceBetween(
-          prev.latitude,
-          prev.longitude,
-          pos.latitude,
-          pos.longitude,
-        );
-        if (d >= 2) {
-          _distanceM += d;
-          _path.add(p);
-        }
-      } else {
-        _path.add(p);
-      }
+          if (prev != null) {
+            final d = Geolocator.distanceBetween(
+              prev.latitude,
+              prev.longitude,
+              pos.latitude,
+              pos.longitude,
+            );
+            if (d >= 2) {
+              _distanceM += d;
+              _path.add(p);
+            }
+          } else {
+            _path.add(p);
+          }
 
-      if (_map != null) {
-        await _map!.animateCamera(CameraUpdate.newLatLng(p));
-      }
-      if (mounted) setState(() {});
-    });
+          if (_map != null) {
+            await _map!.animateCamera(CameraUpdate.newLatLng(p));
+          }
+          if (mounted) setState(() {});
+        });
 
     if (_map != null) {
       await _map!.animateCamera(CameraUpdate.newLatLngZoom(_cameraCenter, 17));
@@ -284,6 +295,7 @@ class _WalkScreenState extends State<WalkScreen> {
           distanceMeters: _distanceM,
           path: List<LatLng>.from(_path),
           petIds: _selectedPetIds.toList(growable: false),
+          shareToFeed: true, // 피드 공유 기본값 설정
         ),
       ),
     );
@@ -301,7 +313,8 @@ class _WalkScreenState extends State<WalkScreen> {
   String _fmtDuration(Duration d) {
     final m = d.inMinutes;
     final s = d.inSeconds % 60;
-    if (m < 60) return '${m.toString().padLeft(2, '0')}분 ${s.toString().padLeft(2, '0')}초';
+    if (m < 60)
+      return '${m.toString().padLeft(2, '0')}분 ${s.toString().padLeft(2, '0')}초';
     final h = d.inHours;
     final mm = m % 60;
     return '${h.toString().padLeft(2, '0')}시간 ${mm.toString().padLeft(2, '0')}분';
@@ -320,59 +333,76 @@ class _WalkScreenState extends State<WalkScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF233554),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+          onPressed: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const MainScreen()),
+              (route) => false,
+            );
+          },
+        ),
       ),
       body: Stack(
         children: [
           Positioned.fill(
             child: _permissionOk
                 ? GoogleMap(
-              initialCameraPosition: CameraPosition(target: _cameraCenter, zoom: 17),
-              onMapCreated: (c) => _map = c,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: false,
-              polylines: {
-                if (_path.length >= 2)
-                  Polyline(
-                    polylineId: const PolylineId('walk'),
-                    points: _path,
-                    width: 6,
-                  ),
-              },
-            )
+                    initialCameraPosition: CameraPosition(
+                      target: _cameraCenter,
+                      zoom: 17,
+                    ),
+                    onMapCreated: (c) => _map = c,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                    zoomControlsEnabled: false,
+                    polylines: {
+                      if (_path.length >= 2)
+                        Polyline(
+                          polylineId: const PolylineId('walk'),
+                          points: _path,
+                          width: 6,
+                        ),
+                    },
+                  )
                 : Container(
-              color: const Color(0xFFEFEFEF),
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.location_off, size: 44),
-                      const SizedBox(height: 12),
-                      const Text(
-                        '위치 권한/위치 서비스(GPS)가 필요합니다.\n버튼을 눌러 설정을 진행해 주세요.',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        height: 44,
-                        child: ElevatedButton(
-                          onPressed: _requesting ? null : _onPermissionButton,
-                          child: _requesting
-                              ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                              : const Text('권한 요청 / 설정 열기'),
+                    color: const Color(0xFFEFEFEF),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.location_off, size: 44),
+                            const SizedBox(height: 12),
+                            const Text(
+                              '위치 권한/위치 서비스(GPS)가 필요합니다.\n버튼을 눌러 설정을 진행해 주세요.',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              height: 44,
+                              child: ElevatedButton(
+                                onPressed: _requesting
+                                    ? null
+                                    : _onPermissionButton,
+                                child: _requesting
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('권한 요청 / 설정 열기'),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-            ),
           ),
 
           Positioned(
@@ -386,7 +416,11 @@ class _WalkScreenState extends State<WalkScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
                   boxShadow: [
-                    BoxShadow(color: Color(0x22000000), blurRadius: 10, offset: Offset(0, -2)),
+                    BoxShadow(
+                      color: Color(0x22000000),
+                      blurRadius: 10,
+                      offset: Offset(0, -2),
+                    ),
                   ],
                 ),
                 child: SafeArea(
@@ -399,7 +433,10 @@ class _WalkScreenState extends State<WalkScreen> {
                         children: [
                           SizedBox(
                             height: 74,
-                            child: Align(alignment: Alignment.centerLeft, child: _buildPetsRow(context)),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: _buildPetsRow(context),
+                            ),
                           ),
                           const SizedBox(height: 16),
 
@@ -416,10 +453,15 @@ class _WalkScreenState extends State<WalkScreen> {
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF233554),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                                 onPressed: _stopWalk,
-                                child: const Text('산책 종료', style: TextStyle(color: Colors.white)),
+                                child: const Text(
+                                  '산책 종료',
+                                  style: TextStyle(color: Colors.white),
+                                ),
                               ),
                             ),
                           ] else ...[
@@ -428,12 +470,19 @@ class _WalkScreenState extends State<WalkScreen> {
                               child: ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF233554),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(26),
+                                  ),
                                 ),
-                                onPressed: _permissionOk ? _startWalk : _onPermissionButton,
+                                onPressed: _permissionOk
+                                    ? _startWalk
+                                    : _onPermissionButton,
                                 child: Text(
                                   _permissionOk ? '산책 시작' : '권한 먼저 허용',
-                                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                  ),
                                 ),
                               ),
                             ),
@@ -468,9 +517,21 @@ class _WalkScreenState extends State<WalkScreen> {
           Expanded(
             child: Column(
               children: [
-                Text(leftLabel, style: const TextStyle(color: Color(0xFF233554), fontWeight: FontWeight.w600)),
+                Text(
+                  leftLabel,
+                  style: const TextStyle(
+                    color: Color(0xFF233554),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 6),
-                Text(leftValue, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  leftValue,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ),
@@ -478,9 +539,21 @@ class _WalkScreenState extends State<WalkScreen> {
           Expanded(
             child: Column(
               children: [
-                Text(rightLabel, style: const TextStyle(color: Color(0xFF233554), fontWeight: FontWeight.w600)),
+                Text(
+                  rightLabel,
+                  style: const TextStyle(
+                    color: Color(0xFF233554),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 6),
-                Text(rightValue, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  rightValue,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ),
@@ -495,7 +568,12 @@ class _WalkScreenState extends State<WalkScreen> {
     if (user == null) {
       return Row(
         children: [
-          _petCircle(icon: Icons.pets, label: '로그인 필요', selected: false, onTap: null),
+          _petCircle(
+            icon: Icons.pets,
+            label: '로그인 필요',
+            selected: false,
+            onTap: null,
+          ),
           const SizedBox(width: 10),
           _addPetCircle(context),
         ],
@@ -504,11 +582,7 @@ class _WalkScreenState extends State<WalkScreen> {
 
     // 선택된 반려동물이 없으면 + 버튼만 표시
     if (_selectedPetIds.isEmpty) {
-      return Row(
-        children: [
-          _addPetCircle(context),
-        ],
-      );
+      return Row(children: [_addPetCircle(context)]);
     }
 
     final petsStream = FirebaseFirestore.instance
@@ -522,15 +596,13 @@ class _WalkScreenState extends State<WalkScreen> {
         final docs = snapshot.data?.docs ?? [];
 
         if (docs.isEmpty) {
-          return Row(
-            children: [
-              _addPetCircle(context),
-            ],
-          );
+          return Row(children: [_addPetCircle(context)]);
         }
 
         // 선택된 반려동물만 필터링
-        final selectedDocs = docs.where((doc) => _selectedPetIds.contains(doc.id)).toList();
+        final selectedDocs = docs
+            .where((doc) => _selectedPetIds.contains(doc.id))
+            .toList();
 
         return ListView.separated(
           scrollDirection: Axis.horizontal,
@@ -543,7 +615,12 @@ class _WalkScreenState extends State<WalkScreen> {
             final id = d.id;
             final data = d.data();
             final name = (data['name'] ?? data['pet_name'] ?? '펫').toString();
-            final photoUrl = (data['imageUrl'] ?? data['photo_url'] ?? data['image_url'] ?? '').toString();
+            final photoUrl =
+                (data['imageUrl'] ??
+                        data['photo_url'] ??
+                        data['image_url'] ??
+                        '')
+                    .toString();
 
             return _petCircle(
               label: name,
@@ -580,8 +657,12 @@ class _WalkScreenState extends State<WalkScreen> {
               CircleAvatar(
                 radius: 22,
                 backgroundColor: const Color(0xFFE0E0E0),
-                backgroundImage: (photoUrl != null) ? NetworkImage(photoUrl) : null,
-                child: (photoUrl == null) ? Icon(icon ?? Icons.pets, color: Colors.white) : null,
+                backgroundImage: (photoUrl != null)
+                    ? NetworkImage(photoUrl)
+                    : null,
+                child: (photoUrl == null)
+                    ? Icon(icon ?? Icons.pets, color: Colors.white)
+                    : null,
               ),
               const SizedBox(height: 4),
               SizedBox(
@@ -590,7 +671,11 @@ class _WalkScreenState extends State<WalkScreen> {
                   label,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11, height: 1.0, color: Colors.black54),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    height: 1.0,
+                    color: Colors.black54,
+                  ),
                 ),
               ),
             ],
@@ -602,7 +687,10 @@ class _WalkScreenState extends State<WalkScreen> {
               child: Container(
                 width: 18,
                 height: 18,
-                decoration: const BoxDecoration(color: Color(0xFFE53935), shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE53935),
+                  shape: BoxShape.circle,
+                ),
                 child: const Icon(Icons.check, color: Colors.white, size: 12),
               ),
             ),
@@ -629,7 +717,11 @@ class _WalkScreenState extends State<WalkScreen> {
               '추가',
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, height: 1.0, color: Colors.black54),
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.0,
+                color: Colors.black54,
+              ),
             ),
           ),
         ],
@@ -692,8 +784,13 @@ class _WalkScreenState extends State<WalkScreen> {
 
                     final petId = doc.id;
                     final name = data['name'] ?? data['pet_name'] ?? '이름 없음';
-                    final breed = data['breed'] ?? data['pet_breed'] ?? '품종 정보 없음';
-                    final imageUrl = data['imageUrl'] ?? data['photo_url'] ?? data['image_url'] ?? '';
+                    final breed =
+                        data['breed'] ?? data['pet_breed'] ?? '품종 정보 없음';
+                    final imageUrl =
+                        data['imageUrl'] ??
+                        data['photo_url'] ??
+                        data['image_url'] ??
+                        '';
                     final isSelected = _selectedPetIds.contains(petId);
 
                     return CheckboxListTile(

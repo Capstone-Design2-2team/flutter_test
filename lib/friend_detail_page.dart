@@ -6,6 +6,7 @@ import 'posts_screen.dart';
 import 'following_screen.dart';
 import 'followers_screen.dart';
 import 'user_service.dart';
+import 'pet_confirmation_screen.dart';
 
 class FriendDetailPage extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -483,55 +484,63 @@ class _FriendDetailPageState extends State<FriendDetailPage> {
                           border: Border.all(color: Colors.grey[300]!),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                shape: BoxShape.circle,
+                        child: GestureDetector(
+                          onTap: () {
+                            // 반려동물 확인 화면으로 이동
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PetConfirmationScreen(petId: pet['id']),
                               ),
-                              child: const Icon(Icons.pets, color: Colors.grey),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    pet['name'] ?? '이름 없음',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    pet['breed'] ?? '품종 정보 없음',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (pet['isRepresentative'] == true)
+                            );
+                          },
+                          child: Row(
+                            children: [
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                width: 40,
+                                height: 40,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF233554),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey[300],
+                                  shape: BoxShape.circle,
                                 ),
-                                child: const Text(
-                                  '대표',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                  ),
+                                child: pet['imageUrl'] != null && pet['imageUrl'].isNotEmpty
+                                    ? ClipOval(
+                                        child: Image.network(
+                                          pet['imageUrl'],
+                                          width: 40,
+                                          height: 40,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return const Icon(Icons.pets, color: Colors.grey, size: 20);
+                                          },
+                                        ),
+                                      )
+                                    : const Icon(Icons.pets, color: Colors.grey, size: 20),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      pet['name'] ?? '이름 없음',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      pet['breed'] ?? '품종 정보 없음',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     }).toList(),
