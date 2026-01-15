@@ -160,10 +160,10 @@ class _UserListItemState extends State<UserListItem> {
   void _setupRealtimeListeners() {
     final currentUserId = UserService.getCurrentUserId();
     final targetUserId = widget.user['uid'];
-    
+
     // 기존 리스너 정리
     _disposeListeners();
-    
+
     if (currentUserId != null && targetUserId != null && !_isOwnProfile) {
       // 팔로우 상태 실시간 감지
       _followSubscription = FirebaseFirestore.instance
@@ -198,7 +198,7 @@ class _UserListItemState extends State<UserListItem> {
   Future<void> _toggleFollow() async {
     final currentUserId = UserService.getCurrentUserId();
     final targetUserId = widget.user['uid'];
-    
+
     if (currentUserId != null && targetUserId != null) {
       if (_isFollowed) {
         // 팔로우 취소
@@ -207,17 +207,17 @@ class _UserListItemState extends State<UserListItem> {
             .where('userId', isEqualTo: currentUserId)
             .where('followingId', isEqualTo: targetUserId)
             .get();
-        
+
         for (var doc in followingDocs.docs) {
           await doc.reference.delete();
         }
-        
+
         final followersDocs = await FirebaseFirestore.instance
             .collection('followers')
             .where('userId', isEqualTo: targetUserId)
             .where('followerId', isEqualTo: currentUserId)
             .get();
-        
+
         for (var doc in followersDocs.docs) {
           await doc.reference.delete();
         }
@@ -228,7 +228,7 @@ class _UserListItemState extends State<UserListItem> {
             .where('userId', isEqualTo: currentUserId)
             .where('followingId', isEqualTo: targetUserId)
             .get();
-        
+
         if (existingFollowing.docs.isEmpty) {
           // 팔로우 관계가 없을 때만 추가
           await FirebaseFirestore.instance
@@ -238,7 +238,7 @@ class _UserListItemState extends State<UserListItem> {
             'followingId': targetUserId,
             'timestamp': FieldValue.serverTimestamp(),
           });
-          
+
           await FirebaseFirestore.instance
               .collection('followers')
               .add({
@@ -248,7 +248,7 @@ class _UserListItemState extends State<UserListItem> {
           });
         }
       }
-      
+
       // 상태는 실시간 리스너가 업데이트하므로 setState 불필요
     }
   }
@@ -316,37 +316,37 @@ class _UserListItemState extends State<UserListItem> {
               if (!_isOwnProfile)
                 _isBlocked
                     ? ElevatedButton(
-                        onPressed: null,  // friend_detail_page와 동일하게 null로 설정
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        child: const Text(
-                          '차단됨',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      )
+                  onPressed: null,  // friend_detail_page와 동일하게 null로 설정
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: const Text(
+                    '차단됨',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                )
                     : ElevatedButton(
-                        onPressed: _toggleFollow,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isFollowed ? Colors.grey : const Color(0xFF233554),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                        ),
-                        child: Text(
-                          _isFollowed ? '팔로잉' : '팔로우',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                  onPressed: _toggleFollow,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _isFollowed ? Colors.grey : const Color(0xFF233554),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                  child: Text(
+                    _isFollowed ? '팔로잉' : '팔로우',
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
             ],
           ),
         ),
